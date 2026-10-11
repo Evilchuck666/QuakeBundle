@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import email.message
 import io
 import json
 import os
@@ -38,6 +39,7 @@ import ssl
 import tarfile
 import urllib.error
 import urllib.request
+import urllib.response
 import zipfile
 from pathlib import Path
 
@@ -139,18 +141,41 @@ def steamcmd_executable() -> Path:
     return STEAMCMD_DIR / "steamcmd.sh"
 
 
+# GitHub's API rejects requests without a User-Agent.
+USER_AGENT = "QuakeBundle"
+
+
+def curl_get(url: str):
+    """Download url with curl, returning a response like urlopen's."""
+    try:
+        result = subprocess.run(["curl", "-fsSL", "-A", USER_AGENT, url], capture_output=True)
+    except FileNotFoundError:
+        sys.exit(f"Could not verify the certificate of {url}, and curl is not available")
+    if result.returncode != 0:
+        sys.exit(f"Could not download {url}: {result.stderr.decode(errors='replace').strip()}")
+    headers = email.message.Message()
+    headers["Content-Length"] = str(len(result.stdout))
+    return urllib.response.addinfourl(io.BytesIO(result.stdout), headers, url, 200)
+
+
 def open_url(url: str):
-    # GitHub's API rejects requests without a User-Agent.
-    request = urllib.request.Request(url, headers={"User-Agent": "QuakeBundle"})
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         return urllib.request.urlopen(request)
     except urllib.error.URLError as error:
-        if isinstance(error.reason, ssl.SSLCertVerificationError) and platform.system() == "Darwin":
-            # Python from python.org ships without CA certificates on macOS.
-            sys.exit(
-                f"Could not verify the certificate of {url}.\n"
-                'Run "Install Certificates.command" from your Python folder in Applications.'
-            )
+        if isinstance(error.reason, ssl.SSLCertVerificationError):
+            if platform.system() == "Windows":
+                # Python only trusts the root certificates already in the
+                # Windows store, while Windows itself downloads missing ones
+                # on demand. curl.exe (bundled since Windows 10) uses Windows'
+                # own TLS, so it works where Python fails.
+                return curl_get(url)
+            if platform.system() == "Darwin":
+                # Python from python.org ships without CA certificates on macOS.
+                sys.exit(
+                    f"Could not verify the certificate of {url}.\n"
+                    'Run "Install Certificates.command" from your Python folder in Applications.'
+                )
         sys.exit(f"Could not download {url}: {error.reason}")
 
 
