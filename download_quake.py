@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Descarga Quake (Steam appID 2310) con steamcmd en ~/.local/share/quake/singleplayer.
+"""Descarga Quake y sus expansiones con steamcmd en ~/.local/share/quake/singleplayer.
 
 Uso:
     python3 download_quake.py USUARIO_STEAM
 
-Quake no es gratuito, así que hace falta una cuenta de Steam que lo posea.
+Quake y sus expansiones no son gratuitos, así que hace falta una cuenta de Steam
+que los posea.
 steamcmd pedirá la contraseña y el código de Steam Guard de forma interactiva.
 """
 
@@ -20,14 +21,23 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-APP_ID = 2310
+APP_IDS = [
+    2310,  # Quake
+    9030,  # Quake Mission Pack 1: Scourge of Armagon
+    9040,  # Quake Mission Pack 2: Dissolution of Eternity
+]
 BASE_DIR = Path.home() / ".local" / "share" / "quake"
 INSTALL_DIR = BASE_DIR / "singleplayer"
 STEAMCMD_DIR = BASE_DIR / "steamcmd"
-# steamcmd crea "steamapps/" (manifiesto de la app) dentro del directorio de
-# instalación. Lo guardamos aquí entre ejecuciones para que el árbol final quede
-# limpio y las siguientes ejecuciones sean actualizaciones incrementales.
-MANIFEST_CACHE = STEAMCMD_DIR / "quake-steamapps"
+# steamcmd crea dentro del directorio de instalación carpetas que no forman
+# parte de la instalación de Steam: "steamapps/" (manifiestos de las apps) y
+# "_CommonRedist/" (redistribuibles de DirectX/VC++). Las guardamos aquí entre
+# ejecuciones para que el árbol final quede limpio y las siguientes ejecuciones
+# sean actualizaciones incrementales.
+STEAMCMD_ONLY_DIRS = {
+    "steamapps": STEAMCMD_DIR / "quake-steamapps",
+    "_CommonRedist": STEAMCMD_DIR / "quake-CommonRedist",
+}
 
 STEAMCMD_URLS = {
     "Linux": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz",
@@ -41,8 +51,8 @@ EXPECTED_FILES = [
     "Winquake.exe",
     "id1/PAK0.PAK",
     "id1/PAK1.PAK",
-    "hipnotic/pak0.pak",
-    "rogue/pak0.pak",
+    "hipnotic/pak0.pak",  # 9030
+    "rogue/pak0.pak",  # 9040
     "rerelease/quake_x64_steam.exe",
     "rerelease/id1/pak0.pak",
 ]
@@ -85,16 +95,18 @@ def install_steamcmd() -> Path:
     return exe
 
 
-def restore_manifest() -> None:
-    if MANIFEST_CACHE.exists() and not (INSTALL_DIR / "steamapps").exists():
-        shutil.move(MANIFEST_CACHE, INSTALL_DIR / "steamapps")
+def restore_steamcmd_dirs() -> None:
+    for name, cache in STEAMCMD_ONLY_DIRS.items():
+        if cache.exists() and not (INSTALL_DIR / name).exists():
+            shutil.move(cache, INSTALL_DIR / name)
 
 
-def stash_manifest() -> None:
-    steamapps = INSTALL_DIR / "steamapps"
-    if steamapps.exists():
-        shutil.rmtree(MANIFEST_CACHE, ignore_errors=True)
-        shutil.move(steamapps, MANIFEST_CACHE)
+def stash_steamcmd_dirs() -> None:
+    for name, cache in STEAMCMD_ONLY_DIRS.items():
+        path = INSTALL_DIR / name
+        if path.exists():
+            shutil.rmtree(cache, ignore_errors=True)
+            shutil.move(path, cache)
 
 
 def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
@@ -107,11 +119,13 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
         # force_install_dir tiene que ir antes de +login.
         "+force_install_dir", str(INSTALL_DIR),
         "+login", username,
-        "+app_update", str(APP_ID), "validate",
-        "+quit",
     ]
+    # Las expansiones se instalan en el mismo directorio que Quake.
+    for app_id in APP_IDS:
+        command += ["+app_update", str(app_id), "validate"]
+    command.append("+quit")
 
-    restore_manifest()
+    restore_steamcmd_dirs()
     try:
         # La primera ejecución de steamcmd se autoactualiza y a veces falla el
         # app_update; reintentar es lo habitual.
@@ -121,9 +135,9 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
             if result.returncode == 0:
                 return
             print(f"steamcmd terminó con código {result.returncode}")
-        sys.exit("No se pudo descargar Quake con steamcmd")
+        sys.exit("No se pudo descargar Quake y sus expansiones con steamcmd")
     finally:
-        stash_manifest()
+        stash_steamcmd_dirs()
 
 
 def verify() -> None:
@@ -139,7 +153,7 @@ def main() -> None:
         "username",
         nargs="?",
         default=os.environ.get("STEAM_USERNAME"),
-        help="usuario de Steam que posee Quake (o variable STEAM_USERNAME)",
+        help="usuario de Steam que posee Quake y sus expansiones (o variable STEAM_USERNAME)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="reintentos de steamcmd")
     args = parser.parse_args()
