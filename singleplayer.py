@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
-"""Download Quake and its expansions with steamcmd into the user's data directory.
+"""Download Quake, with its expansions, with steamcmd into the user's data directory.
 
 It also installs the latest release of the vkQuake engine for the current
 system, inside the game data.
 
 Usage:
-    python3 singleplayer.py STEAM_USERNAME
+    python3 singleplayer.py [--attempts N] STEAM_USERNAME
+
+The username can also be given in the STEAM_USERNAME environment variable.
 
 Install location (quake/singleplayer inside the user's data directory):
     Linux:   $XDG_DATA_HOME/quake/singleplayer (~/.local/share by default)
     macOS:   ~/Library/Application Support/quake/singleplayer
     Windows: %LOCALAPPDATA%\\quake\\singleplayer
 
-Quake and its expansions are not free, so a Steam account that owns them is
-required.
+Quake is not free, so a Steam account that owns it is required; the
+expansions are included with it.
 steamcmd will prompt for the password and the Steam Guard code interactively.
 
 Only the data of the re-release is kept: its game folders (id1, hipnotic,
@@ -34,20 +36,19 @@ import os
 import platform
 import re
 import shutil
+import ssl
 import subprocess
 import sys
-import tempfile
-import ssl
 import tarfile
+import tempfile
 import urllib.error
 import urllib.request
 import urllib.response
 import zipfile
 from pathlib import Path
 
-APPS = {
-    2310: "Quake",
-}
+# The Steam app of Quake; it includes the re-release and its expansions.
+APP_ID = 2310
 
 
 def user_data_dir() -> Path:
@@ -76,7 +77,7 @@ STEAMCMD_URLS = {
     "Windows": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip",
 }
 
-# Files that must exist in the re-release after a successful download.
+# Files that must exist in the re-release before installing it.
 EXPECTED_FILES = [
     "id1/pak0.pak",
     "hipnotic/pak0.pak",
@@ -321,7 +322,7 @@ def login(steamcmd: Path, username: str) -> None:
         sys.exit(f"Could not log in to Steam as {username}")
 
 
-def remove_steamcmd() -> None:
+def clean_up() -> None:
     for path in (DOWNLOAD_DIR, STEAMCMD_DIR):
         shutil.rmtree(path, ignore_errors=True)
         print(f"    Removed {path}")
@@ -337,14 +338,9 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
         # force_install_dir must come before +login.
         "+force_install_dir", str(DOWNLOAD_DIR),
         "+login", username,
+        "+app_update", str(APP_ID),
+        "+quit",
     ]
-    # The expansions are installed into the same directory as Quake.
-    for app_id in APPS:
-        command += ["+app_update", str(app_id), "validate"]
-    command.append("+quit")
-
-    apps = list(APPS.items())
-    name_width = max(len(name) for name in APPS.values())
 
     # steamcmd updates itself on its first run and app_update sometimes
     # fails; retrying is the usual fix.
@@ -352,49 +348,38 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
         if attempt > 1:
             print(f"    Retrying (attempt {attempt}/{attempts})")
         progress = Progress()
-        # steamcmd installs the apps in order and only reports progress
-        # for the current one, so track which app it is on.
-        current = 0
+        finished = False
         total_size = 0
 
-        def label() -> str:
-            return f"    [{current + 1}/{len(apps)}] {apps[current][1]:<{name_width}}"
-
         def on_line(line: str) -> None:
-            nonlocal current, total_size
-            if current >= len(apps):
+            nonlocal finished, total_size
+            if finished:
                 return
             if match := PROGRESS_RE.search(line):
-                state, done, total = match[1], int(match[3]), int(match[4])
+                state, downloaded, total = match[1], int(match[3]), int(match[4])
                 total_size = total or total_size
-                fraction = done / total if total else 0.0
-                sizes = f"{done / 1024 / 1024:,.1f}/{mb(total)}" if total else ""
-                progress.update(
-                    f"{label()}  {bar(fraction, 16)} {fraction * 100:5.1f}%  {state}  {sizes}"
-                )
+                fraction = downloaded / total if total else 0.0
+                sizes = f"{downloaded / 1024 / 1024:,.1f}/{mb(total)}" if total else ""
+                progress.update(f"    {bar(fraction)} {fraction * 100:5.1f}%  {state}  {sizes}")
             elif match := SUCCESS_RE.search(line):
                 status = "up to date" if "up to date" in match[2] else "installed"
                 size = f" ({mb(total_size)})" if total_size else ""
-                progress.done(f"{label()}  ✔ {status}{size}")
-                current += 1
-                total_size = 0
+                progress.done(f"    ✔ {status}{size}")
+                finished = True
 
         returncode, tail = run_captured(command, on_line)
-        if returncode == 0 and current == len(apps):
+        if returncode == 0 and finished:
             return
-        if current < len(apps):
-            progress.done(f"{label()}  ✘ failed (steamcmd exit code {returncode})")
+        if not finished:
+            progress.done(f"    ✘ failed (steamcmd exit code {returncode})")
         print_tail(tail)
-    sys.exit("Could not download Quake and its expansions with steamcmd")
-
-
-def verify() -> None:
-    missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
-    if missing:
-        sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
+    sys.exit("Could not download Quake with steamcmd")
 
 
 def install_game_data() -> None:
+    missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
+    if missing:
+        sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
     # Only the game folders; the files at the top of the re-release are the
     # KEX engine, which vkQuake replaces.
     files = [p for p in RERELEASE_DIR.glob("*/**/*") if p.is_file()]
@@ -503,7 +488,7 @@ def main() -> None:
         "username",
         nargs="?",
         default=os.environ.get("STEAM_USERNAME"),
-        help="Steam user that owns Quake and its expansions (or STEAM_USERNAME variable)",
+        help="Steam user that owns Quake (or STEAM_USERNAME variable)",
     )
     parser.add_argument("--attempts", type=int, default=3, help="steamcmd retries")
     args = parser.parse_args()
@@ -520,15 +505,14 @@ def main() -> None:
     update_steamcmd(steamcmd)
     step(f"Logging in to Steam as {args.username}")
     login(steamcmd, args.username)
-    step("Downloading Quake and its expansions")
+    step("Downloading Quake")
     download_quake(steamcmd, args.username, args.attempts)
-    step("Verifying files")
-    verify()
     step("Installing game data")
     install_game_data()
-    # Only after a successful download, so a retry doesn't re-download steamcmd.
+    # Only once the game data is installed, so a failed run can be retried
+    # without downloading steamcmd and the game again.
     step("Cleaning up")
-    remove_steamcmd()
+    clean_up()
     step("Installing vkQuake")
     install_vkquake()
     print("\nDone.")
