@@ -16,9 +16,11 @@ Quake and its expansions are not free, so a Steam account that owns them is
 required.
 steamcmd will prompt for the password and the Steam Guard code interactively.
 
-vkQuake goes into quake/singleplayer/rerelease, the only data there that it can
-use everywhere: it needs lowercase "id1/pak0.pak" on case-sensitive file
-systems, and the original data has "id1/PAK0.PAK".
+Only the data of the re-release is kept: its game folders (id1, hipnotic,
+rogue, ...) with their pak0.pak and music go directly into quake/singleplayer,
+next to vkQuake. It is the only data that vkQuake can use everywhere: it needs
+lowercase "id1/pak0.pak" on case-sensitive file systems, and the original data
+has "id1/PAK0.PAK".
 """
 
 from __future__ import annotations
@@ -62,11 +64,10 @@ def user_data_dir() -> Path:
 BASE_DIR = user_data_dir() / "quake"
 INSTALL_DIR = BASE_DIR / "singleplayer"
 STEAMCMD_DIR = BASE_DIR / "steamcmd"
-# steamcmd creates folders inside the install directory that are not part of
-# a Steam client install: "steamapps/" (app manifests) and "_CommonRedist/"
-# (DirectX/VC++ redistributables). They are removed when it finishes.
-STEAMCMD_ONLY_DIRS = ["steamapps", "_CommonRedist"]
-VKQUAKE_DIR = INSTALL_DIR / "rerelease"
+# steamcmd downloads the whole Steam install here; only the re-release game
+# folders are moved to INSTALL_DIR, and the rest is removed.
+DOWNLOAD_DIR = BASE_DIR / "download"
+RERELEASE_DIR = DOWNLOAD_DIR / "rerelease"
 VKQUAKE_RELEASE_URL = "https://api.github.com/repos/Novum/vkQuake/releases/latest"
 # vkQuake publishes no macOS build; Mac Source Ports does (universal binary).
 VKQUAKE_MAC_RELEASES_URL = "https://api.github.com/repos/MacSourcePorts/MSPBuildSystem/releases"
@@ -77,16 +78,11 @@ STEAMCMD_URLS = {
     "Windows": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip",
 }
 
-# Files that must exist after a successful download.
+# Files that must exist in the re-release after a successful download.
 EXPECTED_FILES = [
-    "quake.exe",
-    "Winquake.exe",
-    "id1/PAK0.PAK",
-    "id1/PAK1.PAK",
-    "hipnotic/pak0.pak",  # 9030
-    "rogue/pak0.pak",  # 9040
-    "rerelease/quake_x64_steam.exe",
-    "rerelease/id1/pak0.pak",
+    "id1/pak0.pak",
+    "hipnotic/pak0.pak",
+    "rogue/pak0.pak",
 ]
 
 # Lines of steamcmd output that drive the progress display.
@@ -327,25 +323,21 @@ def login(steamcmd: Path, username: str) -> None:
         sys.exit(f"Could not log in to Steam as {username}")
 
 
-def remove_steamcmd_dirs() -> None:
-    for name in STEAMCMD_ONLY_DIRS:
-        shutil.rmtree(INSTALL_DIR / name, ignore_errors=True)
-
-
 def remove_steamcmd() -> None:
-    shutil.rmtree(STEAMCMD_DIR, ignore_errors=True)
-    print(f"    Removed {STEAMCMD_DIR}")
+    for path in (DOWNLOAD_DIR, STEAMCMD_DIR):
+        shutil.rmtree(path, ignore_errors=True)
+        print(f"    Removed {path}")
 
 
 def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
-    INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+    DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     command = [
         str(steamcmd),
         # Quake only has Windows depots; without this, steamcmd on Linux/macOS
         # would download nothing.
         "+@sSteamCmdForcePlatformType", "windows",
         # force_install_dir must come before +login.
-        "+force_install_dir", str(INSTALL_DIR),
+        "+force_install_dir", str(DOWNLOAD_DIR),
         "+login", username,
     ]
     # The expansions are installed into the same directory as Quake.
@@ -356,57 +348,64 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
     apps = list(APPS.items())
     name_width = max(len(name) for name in APPS.values())
 
-    try:
-        # steamcmd updates itself on its first run and app_update sometimes
-        # fails; retrying is the usual fix.
-        for attempt in range(1, attempts + 1):
-            if attempt > 1:
-                print(f"    Retrying (attempt {attempt}/{attempts})")
-            progress = Progress()
-            # steamcmd installs the apps in order and only reports progress
-            # for the current one, so track which app it is on.
-            current = 0
-            total_size = 0
+    # steamcmd updates itself on its first run and app_update sometimes
+    # fails; retrying is the usual fix.
+    for attempt in range(1, attempts + 1):
+        if attempt > 1:
+            print(f"    Retrying (attempt {attempt}/{attempts})")
+        progress = Progress()
+        # steamcmd installs the apps in order and only reports progress
+        # for the current one, so track which app it is on.
+        current = 0
+        total_size = 0
 
-            def label() -> str:
-                return f"    [{current + 1}/{len(apps)}] {apps[current][1]:<{name_width}}"
+        def label() -> str:
+            return f"    [{current + 1}/{len(apps)}] {apps[current][1]:<{name_width}}"
 
-            def on_line(line: str) -> None:
-                nonlocal current, total_size
-                if current >= len(apps):
-                    return
-                if match := PROGRESS_RE.search(line):
-                    state, done, total = match[1], int(match[3]), int(match[4])
-                    total_size = total or total_size
-                    fraction = done / total if total else 0.0
-                    sizes = f"{done / 1024 / 1024:,.1f}/{mb(total)}" if total else ""
-                    progress.update(
-                        f"{label()}  {bar(fraction, 16)} {fraction * 100:5.1f}%  {state}  {sizes}"
-                    )
-                elif match := SUCCESS_RE.search(line):
-                    status = "up to date" if "up to date" in match[2] else "installed"
-                    size = f" ({mb(total_size)})" if total_size else ""
-                    progress.done(f"{label()}  ✔ {status}{size}")
-                    current += 1
-                    total_size = 0
-
-            returncode, tail = run_captured(command, on_line)
-            if returncode == 0 and current == len(apps):
+        def on_line(line: str) -> None:
+            nonlocal current, total_size
+            if current >= len(apps):
                 return
-            if current < len(apps):
-                progress.done(f"{label()}  ✘ failed (steamcmd exit code {returncode})")
-            print_tail(tail)
-        sys.exit("Could not download Quake and its expansions with steamcmd")
-    finally:
-        remove_steamcmd_dirs()
+            if match := PROGRESS_RE.search(line):
+                state, done, total = match[1], int(match[3]), int(match[4])
+                total_size = total or total_size
+                fraction = done / total if total else 0.0
+                sizes = f"{done / 1024 / 1024:,.1f}/{mb(total)}" if total else ""
+                progress.update(
+                    f"{label()}  {bar(fraction, 16)} {fraction * 100:5.1f}%  {state}  {sizes}"
+                )
+            elif match := SUCCESS_RE.search(line):
+                status = "up to date" if "up to date" in match[2] else "installed"
+                size = f" ({mb(total_size)})" if total_size else ""
+                progress.done(f"{label()}  ✔ {status}{size}")
+                current += 1
+                total_size = 0
+
+        returncode, tail = run_captured(command, on_line)
+        if returncode == 0 and current == len(apps):
+            return
+        if current < len(apps):
+            progress.done(f"{label()}  ✘ failed (steamcmd exit code {returncode})")
+        print_tail(tail)
+    sys.exit("Could not download Quake and its expansions with steamcmd")
 
 
 def verify() -> None:
-    missing = [f for f in EXPECTED_FILES if not (INSTALL_DIR / f).exists()]
+    missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
     if missing:
         sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
-    files = [p for p in INSTALL_DIR.rglob("*") if p.is_file()]
+
+
+def install_game_data() -> None:
+    # Only the game folders; the files at the top of the re-release are the
+    # KEX engine, which vkQuake replaces.
+    files = [p for p in RERELEASE_DIR.glob("*/**/*") if p.is_file()]
     size = sum(p.stat().st_size for p in files)
+    # File by file, so saves and configs in the game folders are kept.
+    for src in files:
+        dest = INSTALL_DIR / src.relative_to(RERELEASE_DIR)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(src, dest)
     print(f"    ✔ {len(files)} files, {mb(size)} in {INSTALL_DIR}")
 
 
@@ -458,7 +457,7 @@ def install_vkquake_mac(dmg: bytes) -> Path:
         )
         try:
             app = next(mountpoint.glob("*.app"))
-            dest = VKQUAKE_DIR / app.name
+            dest = INSTALL_DIR / app.name
             shutil.rmtree(dest, ignore_errors=True)
             # ditto keeps the bundle's symlinks, permissions and signature.
             subprocess.run(["ditto", app, dest], check=True)
@@ -487,17 +486,17 @@ def install_vkquake() -> None:
             for info in archive.infolist():
                 # Debug symbols, not needed to play.
                 if not info.filename.endswith(".pdb"):
-                    archive.extract(info, VKQUAKE_DIR)
-        print(f"    ✔ Installed {VKQUAKE_DIR / 'vkQuake.exe'}")
+                    archive.extract(info, INSTALL_DIR)
+        print(f"    ✔ Installed {INSTALL_DIR / 'vkQuake.exe'}")
         print("    Run it from its folder; it uses the current directory as the game folder.")
     else:
         # Fixed name, so the command to run it doesn't change with each version.
-        appimage = VKQUAKE_DIR / "vkQuake"
+        appimage = INSTALL_DIR / "vkQuake"
         appimage.write_bytes(data)
         appimage.chmod(0o755)
         print(f"    ✔ Installed {appimage}")
         print("    Run it with:")
-        print(f'      "{appimage}" -basedir "{VKQUAKE_DIR}"')
+        print(f'      "{appimage}" -basedir "{INSTALL_DIR}"')
 
 
 def main() -> None:
@@ -527,6 +526,8 @@ def main() -> None:
     download_quake(steamcmd, args.username, args.attempts)
     step("Verifying files")
     verify()
+    step("Installing game data")
+    install_game_data()
     # Only after a successful download, so a retry doesn't re-download steamcmd.
     step("Cleaning up")
     remove_steamcmd()
