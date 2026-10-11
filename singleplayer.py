@@ -47,8 +47,6 @@ from pathlib import Path
 
 APPS = {
     2310: "Quake",
-    9030: "Scourge of Armagon",  # Quake Mission Pack 1
-    9040: "Dissolution of Eternity",  # Quake Mission Pack 2
 }
 
 
