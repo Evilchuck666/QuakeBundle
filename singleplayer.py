@@ -492,7 +492,7 @@ def install_vkquake() -> None:
         print("    Run it from its folder; it uses the current directory as the game folder.")
     else:
         # Fixed name, so the command to run it doesn't change with each version.
-        appimage = VKQUAKE_DIR / "vkQuake.AppImage"
+        appimage = VKQUAKE_DIR / "vkQuake"
         appimage.write_bytes(data)
         appimage.chmod(0o755)
         print(f"    ✔ Installed {appimage}")
