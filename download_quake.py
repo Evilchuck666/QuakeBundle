@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Download Quake and its expansions with steamcmd into ~/.local/share/quake/singleplayer.
+"""Download Quake and its expansions with steamcmd into the user's data directory.
 
 Usage:
     python3 download_quake.py STEAM_USERNAME
+
+Install location (quake/singleplayer inside the user's data directory):
+    Linux:   $XDG_DATA_HOME/quake/singleplayer (~/.local/share by default)
+    macOS:   ~/Library/Application Support/quake/singleplayer
+    Windows: %LOCALAPPDATA%\\quake\\singleplayer
 
 Quake and its expansions are not free, so a Steam account that owns them is
 required.
@@ -18,7 +23,9 @@ import re
 import shutil
 import subprocess
 import sys
+import ssl
 import tarfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -28,7 +35,18 @@ APPS = {
     9030: "Scourge of Armagon",  # Quake Mission Pack 1
     9040: "Dissolution of Eternity",  # Quake Mission Pack 2
 }
-BASE_DIR = Path.home() / ".local" / "share" / "quake"
+
+
+def user_data_dir() -> Path:
+    system = platform.system()
+    if system == "Windows":
+        return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    if system == "Darwin":
+        return Path.home() / "Library" / "Application Support"
+    return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+
+
+BASE_DIR = user_data_dir() / "quake"
 INSTALL_DIR = BASE_DIR / "singleplayer"
 STEAMCMD_DIR = BASE_DIR / "steamcmd"
 # steamcmd creates folders inside the install directory that are not part of
@@ -108,7 +126,17 @@ def steamcmd_executable() -> Path:
 
 def fetch(url: str) -> bytes:
     progress = Progress()
-    with urllib.request.urlopen(url) as response:
+    try:
+        response = urllib.request.urlopen(url)
+    except urllib.error.URLError as error:
+        if isinstance(error.reason, ssl.SSLCertVerificationError) and platform.system() == "Darwin":
+            # Python from python.org ships without CA certificates on macOS.
+            sys.exit(
+                f"Could not verify the certificate of {url}.\n"
+                'Run "Install Certificates.command" from your Python folder in Applications.'
+            )
+        sys.exit(f"Could not download {url}: {error.reason}")
+    with response:
         total = int(response.headers.get("Content-Length", 0))
         data = bytearray()
         while chunk := response.read(64 * 1024):
@@ -139,13 +167,32 @@ def install_steamcmd() -> Path:
             archive.extractall(STEAMCMD_DIR)
     else:
         with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
-            archive.extractall(STEAMCMD_DIR, filter="tar")
+            # Extraction filters only exist since Python 3.12 (and some
+            # security releases of 3.8-3.11); macOS ships Python 3.9.6.
+            if hasattr(tarfile, "tar_filter"):
+                archive.extractall(STEAMCMD_DIR, filter="tar")
+            else:
+                archive.extractall(STEAMCMD_DIR)
 
     if not exe.exists():
         sys.exit(f"{exe} not found after extracting steamcmd")
     if system != "Windows":
         exe.chmod(0o755)
     return exe
+
+
+def check_rosetta() -> None:
+    # steamcmd for macOS is an Intel binary; Apple Silicon needs Rosetta 2.
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return
+    result = subprocess.run(
+        ["arch", "-x86_64", "/usr/bin/true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
+    if result.returncode != 0:
+        sys.exit(
+            "steamcmd needs Rosetta 2 on Apple Silicon. Install it with:\n"
+            "    softwareupdate --install-rosetta --agree-to-license"
+        )
 
 
 def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
@@ -192,6 +239,8 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
+        # Windows has no pseudo-terminals in the standard library, so progress
+        # may arrive in bursts here.
         for raw in proc.stdout:
             handle(raw)
     return proc.wait(), list(tail)
@@ -323,6 +372,10 @@ def main() -> None:
     args = parser.parse_args()
     if not args.username:
         parser.error("a Steam username is required (argument or STEAM_USERNAME)")
+    # Avoid crashing on the progress bar characters when the output encoding
+    # can't represent them (e.g. Windows redirected to a file).
+    sys.stdout.reconfigure(errors="replace")
+    check_rosetta()
 
     step("Installing steamcmd")
     steamcmd = install_steamcmd()
