@@ -30,7 +30,6 @@ from __future__ import annotations
 import argparse
 import collections
 import email.message
-import io
 import json
 import os
 import platform
@@ -41,6 +40,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.error
 import urllib.request
 import urllib.response
@@ -99,24 +99,33 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # Output kept to show the user when steamcmd fails.
 TAIL_LINES = 25
 
+DOWNLOAD_CHUNK_SIZE = 1024 * 1024
+PROGRESS_INTERVAL = 0.1
+
 
 class Progress:
     """A single console line that is redrawn in place on a terminal."""
 
     def __init__(self) -> None:
         self.tty = sys.stdout.isatty()
+        self._last_update = float("-inf")
 
-    def update(self, text: str) -> None:
-        """Redraw a progress line in place on the terminal."""
-        if self.tty:
-            width = shutil.get_terminal_size().columns - 1
-            sys.stdout.write("\r" + text[:width].ljust(width))
-            sys.stdout.flush()
+    def update(self, text: str, *, force: bool = False) -> None:
+        """Redraw at most ten times per second, unless forced."""
+        if not self.tty:
+            return
+        now = time.monotonic()
+        if not force and now - self._last_update < PROGRESS_INTERVAL:
+            return
+        width = shutil.get_terminal_size().columns - 1
+        sys.stdout.write("\r" + text[:width].ljust(width))
+        sys.stdout.flush()
+        self._last_update = now
 
     def done(self, text: str) -> None:
         """Finish the current progress line and leave the terminal on a new line."""
         if self.tty:
-            self.update(text)
+            self.update(text, force=True)
             sys.stdout.write("\n")
         else:
             print(text)
@@ -153,15 +162,25 @@ USER_AGENT = "QuakeBundle"
 
 def curl_get(url: str):
     """Download url with curl, returning a response like urlopen's."""
+    response = tempfile.TemporaryFile()
     try:
-        result = subprocess.run(["curl", "-fsSL", "-A", USER_AGENT, url], capture_output=True)
-    except FileNotFoundError:
-        sys.exit(f"Could not verify the certificate of {url}, and curl is not available")
-    if result.returncode != 0:
-        sys.exit(f"Could not download {url}: {result.stderr.decode(errors='replace').strip()}")
-    headers = email.message.Message()
-    headers["Content-Length"] = str(len(result.stdout))
-    return urllib.response.addinfourl(io.BytesIO(result.stdout), headers, url, 200)
+        try:
+            result = subprocess.run(
+                ["curl", "-fsSL", "-A", USER_AGENT, url],
+                stdout=response,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            sys.exit(f"Could not verify the certificate of {url}, and curl is not available")
+        if result.returncode != 0:
+            sys.exit(f"Could not download {url}: {result.stderr.decode(errors='replace').strip()}")
+        headers = email.message.Message()
+        headers["Content-Length"] = str(response.tell())
+        response.seek(0)
+        return urllib.response.addinfourl(response, headers, url, 200)
+    except BaseException:
+        response.close()
+        raise
 
 
 def open_url(url: str):
@@ -192,18 +211,18 @@ def fetch_json(url: str):
         return json.load(response)
 
 
-def fetch(url: str) -> bytes:
-    """Download and return the contents of a URL as bytes."""
+def fetch(url: str, destination: Path) -> None:
+    """Download a URL to disk using a fixed-size buffer."""
     progress = Progress()
-    with open_url(url) as response:
+    downloaded = 0
+    with open_url(url) as response, destination.open("wb") as output:
         total = int(response.headers.get("Content-Length", 0))
-        data = bytearray()
-        while chunk := response.read(64 * 1024):
-            data += chunk
-            if total:
-                progress.update(f"    {progress_bar(len(data) / total)} {mb(len(data))} / {mb(total)}")
-    progress.done(f"    Downloaded {mb(len(data))}")
-    return bytes(data)
+        while chunk := response.read(DOWNLOAD_CHUNK_SIZE):
+            output.write(chunk)
+            downloaded += len(chunk)
+            if total and progress.tty:
+                progress.update(f"    {progress_bar(downloaded / total)} {mb(downloaded)} / {mb(total)}")
+    progress.done(f"    Downloaded {mb(downloaded)}")
 
 
 def install_steamcmd() -> Path:
@@ -219,20 +238,22 @@ def install_steamcmd() -> Path:
         sys.exit(f"Unsupported operating system: {system}")
 
     print(f"    {url}")
-    data = fetch(url)
+    with tempfile.TemporaryDirectory() as tmp:
+        download = Path(tmp) / "steamcmd.download"
+        fetch(url, download)
 
-    STEAMCMD_DIR.mkdir(parents=True, exist_ok=True)
-    if url.endswith(".zip"):
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            archive.extractall(STEAMCMD_DIR)
-    else:
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
-            # Extraction filters only exist since Python 3.12 (and some
-            # security releases of 3.8-3.11); macOS ships Python 3.9.6.
-            if hasattr(tarfile, "tar_filter"):
-                archive.extractall(STEAMCMD_DIR, filter="tar")
-            else:
+        STEAMCMD_DIR.mkdir(parents=True, exist_ok=True)
+        if url.endswith(".zip"):
+            with zipfile.ZipFile(download) as archive:
                 archive.extractall(STEAMCMD_DIR)
+        else:
+            with tarfile.open(download, mode="r:gz") as archive:
+                # Extraction filters only exist since Python 3.12 (and some
+                # security releases of 3.8-3.11); macOS ships Python 3.9.6.
+                if hasattr(tarfile, "tar_filter"):
+                    archive.extractall(STEAMCMD_DIR, filter="tar")
+                else:
+                    archive.extractall(STEAMCMD_DIR)
 
     if not exe.exists():
         sys.exit(f"{exe} not found after extracting steamcmd")
@@ -401,16 +422,44 @@ def install_game_data() -> None:
     missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
     if missing:
         sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
-    # Only the game folders; the files at the top of the re-release are the
-    # KEX engine, which vkQuake replaces.
-    files = [p for p in RERELEASE_DIR.glob("*/**/*") if p.is_file()]
-    size = sum(p.stat().st_size for p in files)
-    # File by file, so saves and configs in the game folders are kept.
-    for src in files:
-        dest = INSTALL_DIR / src.relative_to(RERELEASE_DIR)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(src, dest)
-    print(f"    ✔ {len(files)} files, {mb(size)} in {INSTALL_DIR}")
+
+    def game_files():
+        # Include only game folders, following directory links at this first
+        # level as glob("*/**/*") does, but never recurse through nested links.
+        with os.scandir(RERELEASE_DIR) as entries:
+            pending = [Path(entry.path) for entry in entries if entry.is_dir()]
+        while pending:
+            directory = pending.pop()
+            with os.scandir(directory) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        pending.append(Path(entry.path))
+                    else:
+                        yield directory, entry
+
+    count = size = 0
+    file_links = set()
+    # Measure before moving: relative file links may become temporarily broken
+    # when their targets move. DirEntry caches the metadata used by is_file().
+    for _, entry in game_files():
+        if entry.is_file():
+            count += 1
+            size += entry.stat().st_size
+            if entry.is_symlink():
+                file_links.add(entry.path)
+
+    previous_directory = None
+    # Stream the files, creating each destination directory only once. Moving
+    # individual files preserves existing saves and configs in the game folders.
+    for directory, entry in game_files():
+        if entry.path not in file_links and not entry.is_file(follow_symlinks=False):
+            continue
+        if directory != previous_directory:
+            destination = INSTALL_DIR / directory.relative_to(RERELEASE_DIR)
+            destination.mkdir(parents=True, exist_ok=True)
+            previous_directory = directory
+        os.replace(entry.path, destination / entry.name)
+    print(f"    ✔ {count} files, {mb(size)} in {INSTALL_DIR}")
 
 
 def vkquake_release() -> tuple[str, dict] | None:
@@ -448,12 +497,10 @@ def vkquake_release() -> tuple[str, dict] | None:
     sys.exit(f"vkQuake {release['tag_name']} has no *{suffix} build")
 
 
-def install_vkquake_mac(dmg: bytes) -> Path:
+def install_vkquake_mac(image: Path) -> Path:
     """Install a downloaded vkQuake macOS .dmg into the bundle directory."""
     with tempfile.TemporaryDirectory() as tmp:
-        image = Path(tmp) / "vkQuake.dmg"
         mountpoint = Path(tmp) / "mnt"
-        image.write_bytes(dmg)
         mountpoint.mkdir()
         subprocess.run(
             ["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, image],
@@ -480,29 +527,34 @@ def install_vkquake() -> None:
     version, asset = found
 
     print(f"    vkQuake {version} ({asset['name']})")
-    data = fetch(asset["browser_download_url"])
-
     system = platform.system()
-    if system == "Darwin":
-        app = install_vkquake_mac(data)
-        print(f"    ✔ Installed {app}")
-        print("    Run it by opening vkQuake.app; it uses the folder it is in.")
-    elif system == "Windows":
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            for info in archive.infolist():
-                # Debug symbols, not needed to play.
-                if not info.filename.endswith(".pdb"):
-                    archive.extract(info, INSTALL_DIR)
-        print(f"    ✔ Installed {INSTALL_DIR / 'vkQuake.exe'}")
-        print("    Run it from its folder; it uses the current directory as the game folder.")
-    else:
-        # Fixed name, so the command to run it doesn't change with each version.
-        appimage = INSTALL_DIR / "vkQuake"
-        appimage.write_bytes(data)
-        appimage.chmod(0o755)
-        print(f"    ✔ Installed {appimage}")
-        print("    Run it with:")
-        print(f'      "{appimage}" -basedir "{INSTALL_DIR}"')
+    INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+    # Keep the temporary file on the install filesystem so the AppImage can
+    # replace the previous version without an extra copy or a partial write.
+    with tempfile.TemporaryDirectory(dir=INSTALL_DIR) as tmp:
+        download = Path(tmp) / ("vkQuake.dmg" if system == "Darwin" else "vkQuake.download")
+        fetch(asset["browser_download_url"], download)
+
+        if system == "Darwin":
+            app = install_vkquake_mac(download)
+            print(f"    ✔ Installed {app}")
+            print("    Run it by opening vkQuake.app; it uses the folder it is in.")
+        elif system == "Windows":
+            with zipfile.ZipFile(download) as archive:
+                for info in archive.infolist():
+                    # Debug symbols, not needed to play.
+                    if not info.filename.endswith(".pdb"):
+                        archive.extract(info, INSTALL_DIR)
+            print(f"    ✔ Installed {INSTALL_DIR / 'vkQuake.exe'}")
+            print("    Run it from its folder; it uses the current directory as the game folder.")
+        else:
+            # Fixed name, so the command to run it doesn't change with each version.
+            appimage = INSTALL_DIR / "vkQuake"
+            download.chmod(0o755)
+            os.replace(download, appimage)
+            print(f"    ✔ Installed {appimage}")
+            print("    Run it with:")
+            print(f'      "{appimage}" -basedir "{INSTALL_DIR}"')
 
 
 def main() -> None:
