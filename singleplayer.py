@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Download Quake and its expansions with steamcmd into the user's data directory.
 
+It also installs the latest release of the vkQuake engine for the current
+system, inside the game data.
+
 Usage:
-    python3 download_quake.py STEAM_USERNAME
+    python3 singleplayer.py STEAM_USERNAME
 
 Install location (quake/singleplayer inside the user's data directory):
     Linux:   $XDG_DATA_HOME/quake/singleplayer (~/.local/share by default)
@@ -12,17 +15,25 @@ Install location (quake/singleplayer inside the user's data directory):
 Quake and its expansions are not free, so a Steam account that owns them is
 required.
 steamcmd will prompt for the password and the Steam Guard code interactively.
+
+vkQuake goes into quake/singleplayer/rerelease, the only data there that it can
+use everywhere: it needs lowercase "id1/pak0.pak" on case-sensitive file
+systems, and the original data has "id1/PAK0.PAK".
 """
+
+from __future__ import annotations
 
 import argparse
 import collections
 import io
+import json
 import os
 import platform
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import ssl
 import tarfile
 import urllib.error
@@ -53,6 +64,10 @@ STEAMCMD_DIR = BASE_DIR / "steamcmd"
 # a Steam client install: "steamapps/" (app manifests) and "_CommonRedist/"
 # (DirectX/VC++ redistributables). They are removed when it finishes.
 STEAMCMD_ONLY_DIRS = ["steamapps", "_CommonRedist"]
+VKQUAKE_DIR = INSTALL_DIR / "rerelease"
+VKQUAKE_RELEASE_URL = "https://api.github.com/repos/Novum/vkQuake/releases/latest"
+# vkQuake publishes no macOS build; Mac Source Ports does (universal binary).
+VKQUAKE_MAC_RELEASES_URL = "https://api.github.com/repos/MacSourcePorts/MSPBuildSystem/releases"
 
 STEAMCMD_URLS = {
     "Linux": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz",
@@ -124,10 +139,11 @@ def steamcmd_executable() -> Path:
     return STEAMCMD_DIR / "steamcmd.sh"
 
 
-def fetch(url: str) -> bytes:
-    progress = Progress()
+def open_url(url: str):
+    # GitHub's API rejects requests without a User-Agent.
+    request = urllib.request.Request(url, headers={"User-Agent": "QuakeBundle"})
     try:
-        response = urllib.request.urlopen(url)
+        return urllib.request.urlopen(request)
     except urllib.error.URLError as error:
         if isinstance(error.reason, ssl.SSLCertVerificationError) and platform.system() == "Darwin":
             # Python from python.org ships without CA certificates on macOS.
@@ -136,7 +152,16 @@ def fetch(url: str) -> bytes:
                 'Run "Install Certificates.command" from your Python folder in Applications.'
             )
         sys.exit(f"Could not download {url}: {error.reason}")
-    with response:
+
+
+def fetch_json(url: str):
+    with open_url(url) as response:
+        return json.load(response)
+
+
+def fetch(url: str) -> bytes:
+    progress = Progress()
+    with open_url(url) as response:
         total = int(response.headers.get("Content-Length", 0))
         data = bytearray()
         while chunk := response.read(64 * 1024):
@@ -360,6 +385,96 @@ def verify() -> None:
     print(f"    ✔ {len(files)} files, {mb(size)} in {INSTALL_DIR}")
 
 
+def vkquake_release() -> tuple[str, dict] | None:
+    """Return the version and release asset of vkQuake for this system."""
+    system, machine = platform.system(), platform.machine().lower()
+
+    if system == "Darwin":
+        # Mac Source Ports tags are "vkQuake-<version>" or "vkQuake_<version>"
+        # and are not listed in version order, so pick the newest one.
+        releases = []
+        for page in range(1, 10):
+            batch = fetch_json(f"{VKQUAKE_MAC_RELEASES_URL}?per_page=100&page={page}")
+            if not batch:
+                break
+            releases += [r for r in batch if r["tag_name"].lower().startswith("vkquake")]
+        for release in sorted(releases, key=lambda r: r["published_at"], reverse=True):
+            for asset in release["assets"]:
+                if asset["name"].endswith(".dmg"):
+                    return release["tag_name"][len("vkquake") + 1 :], asset
+        sys.exit("No vkQuake build found on Mac Source Ports")
+
+    if system == "Linux" and machine in ("x86_64", "amd64"):
+        suffix = "-x86_64.AppImage"
+    elif system == "Windows" and machine == "arm64":
+        suffix = "_windows_arm64.zip"
+    elif system == "Windows" and machine in ("amd64", "x86_64"):
+        suffix = "_windows_x64.zip"
+    else:
+        return None
+
+    release = fetch_json(VKQUAKE_RELEASE_URL)
+    for asset in release["assets"]:
+        if asset["name"].endswith(suffix):
+            return release["tag_name"], asset
+    sys.exit(f"vkQuake {release['tag_name']} has no *{suffix} build")
+
+
+def install_vkquake_mac(dmg: bytes) -> Path:
+    with tempfile.TemporaryDirectory() as tmp:
+        image = Path(tmp) / "vkQuake.dmg"
+        mountpoint = Path(tmp) / "mnt"
+        image.write_bytes(dmg)
+        mountpoint.mkdir()
+        subprocess.run(
+            ["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, image],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        try:
+            app = next(mountpoint.glob("*.app"))
+            dest = VKQUAKE_DIR / app.name
+            shutil.rmtree(dest, ignore_errors=True)
+            # ditto keeps the bundle's symlinks, permissions and signature.
+            subprocess.run(["ditto", app, dest], check=True)
+        finally:
+            subprocess.run(["hdiutil", "detach", mountpoint], stdout=subprocess.DEVNULL)
+    return dest
+
+
+def install_vkquake() -> None:
+    found = vkquake_release()
+    if found is None:
+        print(f"    No vkQuake build for {platform.system()} {platform.machine()}; skipping")
+        return
+    version, asset = found
+
+    print(f"    vkQuake {version} ({asset['name']})")
+    data = fetch(asset["browser_download_url"])
+
+    system = platform.system()
+    if system == "Darwin":
+        app = install_vkquake_mac(data)
+        print(f"    ✔ Installed {app}")
+        print("    Run it by opening vkQuake.app; it uses the folder it is in.")
+    elif system == "Windows":
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            for info in archive.infolist():
+                # Debug symbols, not needed to play.
+                if not info.filename.endswith(".pdb"):
+                    archive.extract(info, VKQUAKE_DIR)
+        print(f"    ✔ Installed {VKQUAKE_DIR / 'vkQuake.exe'}")
+        print("    Run it from its folder; it uses the current directory as the game folder.")
+    else:
+        # Fixed name, so the command to run it doesn't change with each version.
+        appimage = VKQUAKE_DIR / "vkQuake.AppImage"
+        appimage.write_bytes(data)
+        appimage.chmod(0o755)
+        print(f"    ✔ Installed {appimage}")
+        print("    Run it with:")
+        print(f'      "{appimage}" -basedir "{VKQUAKE_DIR}"')
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
@@ -390,6 +505,8 @@ def main() -> None:
     # Only after a successful download, so a retry doesn't re-download steamcmd.
     step("Cleaning up")
     remove_steamcmd()
+    step("Installing vkQuake")
+    install_vkquake()
     print("\nDone.")
 
 
