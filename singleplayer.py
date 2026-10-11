@@ -47,9 +47,6 @@ import urllib.response
 import zipfile
 from pathlib import Path
 
-# The Steam app of Quake; it includes the re-release and its expansions.
-APP_ID = 2310
-
 
 def user_data_dir() -> Path:
     """Return the platform-specific per-user data directory for Quake."""
@@ -61,14 +58,20 @@ def user_data_dir() -> Path:
     return Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
 
 
+# The Steam app of Quake; it includes the re-release and its expansions.
+APP_ID = 2310
+
 BASE_DIR = user_data_dir() / "quake"
 INSTALL_DIR = BASE_DIR / "singleplayer"
 STEAMCMD_DIR = BASE_DIR / "steamcmd"
+
 # steamcmd downloads the whole Steam install here; only the re-release game
 # folders are moved to INSTALL_DIR, and the rest is removed.
 DOWNLOAD_DIR = BASE_DIR / "download"
 RERELEASE_DIR = DOWNLOAD_DIR / "rerelease"
+
 VKQUAKE_RELEASE_URL = "https://api.github.com/repos/Novum/vkQuake/releases/latest"
+
 # vkQuake publishes no macOS build; Mac Source Ports does (universal binary).
 VKQUAKE_MAC_RELEASES_URL = "https://api.github.com/repos/MacSourcePorts/MSPBuildSystem/releases"
 
@@ -92,6 +95,7 @@ PROGRESS_RE = re.compile(
 )
 SUCCESS_RE = re.compile(r"Success! App '(\d+)' (.*)")
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+
 # Output kept to show the user when steamcmd fails.
 TAIL_LINES = 25
 
