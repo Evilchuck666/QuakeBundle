@@ -52,6 +52,7 @@ APP_ID = 2310
 
 
 def user_data_dir() -> Path:
+    """Return the platform-specific per-user data directory for Quake."""
     system = platform.system()
     if system == "Windows":
         return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
@@ -102,12 +103,14 @@ class Progress:
         self.tty = sys.stdout.isatty()
 
     def update(self, text: str) -> None:
+        """Redraw a progress line in place on the terminal."""
         if self.tty:
             width = shutil.get_terminal_size().columns - 1
             sys.stdout.write("\r" + text[:width].ljust(width))
             sys.stdout.flush()
 
     def done(self, text: str) -> None:
+        """Finish the current progress line and leave the terminal on a new line."""
         if self.tty:
             self.update(text)
             sys.stdout.write("\n")
@@ -116,20 +119,24 @@ class Progress:
         sys.stdout.flush()
 
 
-def bar(fraction: float, width: int = 24) -> str:
+def progress_bar(fraction: float, width: int = 24) -> str:
+    """Return a visual progress bar for a value between 0.0 and 1.0."""
     filled = round(max(0.0, min(1.0, fraction)) * width)
     return "█" * filled + "░" * (width - filled)
 
 
 def mb(size: int) -> str:
+    """Return a size string in megabytes."""
     return f"{size / 1024 / 1024:,.1f} MB"
 
 
 def step(text: str) -> None:
+    """Print a section header for a step in the workflow."""
     print(f"\n==> {text}")
 
 
 def steamcmd_executable() -> Path:
+    """Return the platform-specific steamcmd executable path."""
     system = platform.system()
     if system == "Windows":
         return STEAMCMD_DIR / "steamcmd.exe"
@@ -154,6 +161,7 @@ def curl_get(url: str):
 
 
 def open_url(url: str):
+    """Open a URL, falling back to curl when the system certificate store is needed."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     try:
         return urllib.request.urlopen(request)
@@ -175,11 +183,13 @@ def open_url(url: str):
 
 
 def fetch_json(url: str):
+    """Download and deserialize a JSON payload from a URL."""
     with open_url(url) as response:
         return json.load(response)
 
 
 def fetch(url: str) -> bytes:
+    """Download and return the contents of a URL as bytes."""
     progress = Progress()
     with open_url(url) as response:
         total = int(response.headers.get("Content-Length", 0))
@@ -187,12 +197,13 @@ def fetch(url: str) -> bytes:
         while chunk := response.read(64 * 1024):
             data += chunk
             if total:
-                progress.update(f"    {bar(len(data) / total)} {mb(len(data))} / {mb(total)}")
+                progress.update(f"    {progress_bar(len(data) / total)} {mb(len(data))} / {mb(total)}")
     progress.done(f"    Downloaded {mb(len(data))}")
     return bytes(data)
 
 
 def install_steamcmd() -> Path:
+    """Install the SteamCMD client if it is not already present."""
     exe = steamcmd_executable()
     if exe.exists():
         print(f"    steamcmd is already installed in {STEAMCMD_DIR}")
@@ -227,7 +238,7 @@ def install_steamcmd() -> Path:
 
 
 def check_rosetta() -> None:
-    # steamcmd for macOS is an Intel binary; Apple Silicon needs Rosetta 2.
+    """Ensure steamcmd can run on Apple Silicon by requiring Rosetta 2."""
     if platform.system() != "Darwin" or platform.machine() != "arm64":
         return
     result = subprocess.run(
@@ -292,6 +303,7 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
 
 
 def print_tail(tail: list[str]) -> None:
+    """Print the non-progress tail from the most recent steamcmd output."""
     print("    Last steamcmd output:")
     for line in tail:
         # Progress lines were already shown and would hide the actual error.
@@ -301,12 +313,13 @@ def print_tail(tail: list[str]) -> None:
 
 
 def update_steamcmd(steamcmd: Path) -> None:
+    """Ensure the bundled steamcmd installation is current."""
     progress = Progress()
 
     def on_line(line: str) -> None:
         if match := SELF_UPDATE_RE.match(line):
             percent = int(match[1])
-            progress.update(f"    {bar(percent / 100)} {percent:3d}%  {match[2]}")
+            progress.update(f"    {progress_bar(percent / 100)} {percent:3d}%  {match[2]}")
 
     # steamcmd exits with a non-zero code after updating itself, so the
     # result is not checked; a broken steamcmd fails in the next steps.
@@ -315,6 +328,7 @@ def update_steamcmd(steamcmd: Path) -> None:
 
 
 def login(steamcmd: Path, username: str) -> None:
+    """Log in to Steam so the download can proceed without interactive prompts."""
     # Interactive, so steamcmd can ask for the password and Steam Guard code.
     # The credentials it caches let the download run without prompts.
     result = subprocess.run([str(steamcmd), "+login", username, "+quit"], cwd=STEAMCMD_DIR)
@@ -323,12 +337,14 @@ def login(steamcmd: Path, username: str) -> None:
 
 
 def clean_up() -> None:
+    """Remove the temporary download and steamcmd directories."""
     for path in (DOWNLOAD_DIR, STEAMCMD_DIR):
         shutil.rmtree(path, ignore_errors=True)
         print(f"    Removed {path}")
 
 
 def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
+    """Download the Quake game data via steamcmd, retrying if needed."""
     DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
     command = [
         str(steamcmd),
@@ -360,7 +376,7 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
                 total_size = total or total_size
                 fraction = downloaded / total if total else 0.0
                 sizes = f"{downloaded / 1024 / 1024:,.1f}/{mb(total)}" if total else ""
-                progress.update(f"    {bar(fraction)} {fraction * 100:5.1f}%  {state}  {sizes}")
+                progress.update(f"    {progress_bar(fraction)} {fraction * 100:5.1f}%  {state}  {sizes}")
             elif match := SUCCESS_RE.search(line):
                 status = "up to date" if "up to date" in match[2] else "installed"
                 size = f" ({mb(total_size)})" if total_size else ""
@@ -377,6 +393,7 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
 
 
 def install_game_data() -> None:
+    """Move the downloaded game data into the install directory."""
     missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
     if missing:
         sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
@@ -428,6 +445,7 @@ def vkquake_release() -> tuple[str, dict] | None:
 
 
 def install_vkquake_mac(dmg: bytes) -> Path:
+    """Install a downloaded vkQuake macOS .dmg into the bundle directory."""
     with tempfile.TemporaryDirectory() as tmp:
         image = Path(tmp) / "vkQuake.dmg"
         mountpoint = Path(tmp) / "mnt"
@@ -450,6 +468,7 @@ def install_vkquake_mac(dmg: bytes) -> Path:
 
 
 def install_vkquake() -> None:
+    """Download and install the matching vkQuake build for this platform."""
     found = vkquake_release()
     if found is None:
         print(f"    No vkQuake build for {platform.system()} {platform.machine()}; skipping")
@@ -483,6 +502,7 @@ def install_vkquake() -> None:
 
 
 def main() -> None:
+    """Install and configure Steam Quake for single-player use."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "username",
