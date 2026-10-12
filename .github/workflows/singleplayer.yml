@@ -1,0 +1,59 @@
+name: Test singleplayer
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Exercise the minimum supported Python and a recent version on x64.
+        os: [ubuntu-24.04, windows-2025, macos-15-intel]
+        python: ['3.9', '3.14']
+        include:
+          # setup-python has no native macOS/Windows ARM64 build of Python 3.9.
+          - os: macos-15
+            python: '3.14'
+          - os: windows-11-arm
+            python: '3.14'
+          # Cover the intermediate Python versions without multiplying every OS.
+          - os: ubuntu-24.04
+            python: '3.10'
+          - os: ubuntu-24.04
+            python: '3.11'
+          - os: ubuntu-24.04
+            python: '3.12'
+          - os: ubuntu-24.04
+            python: '3.13'
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONIOENCODING: utf-8
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the script dependency
+        run: python -m pip install tqdm
+      - name: Check the CLI entry point
+        run: python singleplayer.py --help
+      - name: Run offline installer tests
+        # Steam authentication and commercial game data are replaced by fixtures.
+        # No Steam account, secrets, or live release downloads are needed.
+        run: python -m unittest discover -s tests -v
