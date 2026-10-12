@@ -207,13 +207,18 @@ def get_resolution_macos():
 def detect_resolution():
     """Detect the current display mode using the host operating system."""
     print("Detecting display resolution...")
+
     system = platform.system()
+
     if system == "Windows":
         return get_resolution_windows()
-    elif system == "Linux":
+
+    if system == "Linux":
         return get_resolution_linux()
-    elif system == "Darwin":
+
+    if system == "Darwin":
         return get_resolution_macos()
+
     return None
 
 
