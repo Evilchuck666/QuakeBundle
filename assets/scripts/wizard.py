@@ -300,8 +300,10 @@ def build_updates_dict(name, team, sensitivity, video_settings):
 
     if vid_width is not None:
         updates["vid_width"] = vid_width
+
     if vid_height is not None:
         updates["vid_height"] = vid_height
+
     if vid_freq is not None:
         updates["vid_displayfrequency"] = vid_freq
 
@@ -360,7 +362,9 @@ def rewrite_line_if_update(line: str, updates: dict[str, str], keys_found: set[s
     return format_config_entry(key, updates[key], comment)
 
 
-def update_lines_with_keys(lines: list[str], updates: dict[str, str]) -> tuple[list[str], set[str]]:
+def update_lines_with_keys(
+    lines: list[str], updates: dict[str, str]
+) -> tuple[list[str], set[str]]:
     """Update existing settings and remove explicit video settings in desktop mode."""
     new_lines: list[str] = []
     keys_found: set[str] = set()
