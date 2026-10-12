@@ -103,9 +103,15 @@ class RosettaTests(unittest.TestCase):
 
     def test_apple_silicon_probes_rosetta(self):
         """Probe Rosetta on Apple Silicon systems when needed."""
-        with patch.object(steamcmd.platform, "system", return_value="Darwin"), \
-             patch.object(steamcmd.platform, "machine", return_value="arm64"), \
-             patch.object(steamcmd.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
+        with (
+            patch.object(steamcmd.platform, "system", return_value="Darwin"),
+            patch.object(steamcmd.platform, "machine", return_value="arm64"),
+            patch.object(
+                steamcmd.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess([], 0)
+            ) as run
+        ):
             steamcmd.check_rosetta()
             run.assert_called_once_with(
                 ["arch", "-x86_64", "/usr/bin/true"],
