@@ -128,15 +128,20 @@ class VkQuakeInstallTests(unittest.TestCase):
     def setUp(self):
         """Create a fresh temporary install root for each test."""
         temporary = tempfile.TemporaryDirectory()
+
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.install_dir = self.root / "game files" / "singleplayer"
+
         patcher = mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.install_dir)
         patcher.start()
+
         self.addCleanup(patcher.stop)
         self.output = io.StringIO()
+
         redirect = contextlib.redirect_stdout(self.output)
         redirect.__enter__()
+        
         self.addCleanup(redirect.__exit__, None, None, None)
 
     def test_appimage_replaces_previous_version_and_is_executable(self):
@@ -188,11 +193,18 @@ class VkQuakeInstallTests(unittest.TestCase):
                     vkquake.install_vkquake()
         files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
                  for path in self.install_dir.rglob("*") if path.is_file()}
-        self.assertEqual(files, {"vkQuake.exe": b"executable", "support/config.cfg": b"configuration"})
-        self.assertEqual(self.output.getvalue(),
-                         f"    vkQuake 1.32 ({asset['name']})\n"
-                         f"    ✔ Installed {self.install_dir / 'vkQuake.exe'}\n"
-                         "    Run it from its folder; it uses the current directory as the game folder.\n")
+
+        self.assertEqual(
+            files,
+            {"vkQuake.exe": b"executable", "support/config.cfg": b"configuration"}
+        )
+
+        self.assertEqual(
+            self.output.getvalue(),
+            f"    vkQuake 1.32 ({asset['name']})\n"
+            f"    ✔ Installed {self.install_dir / 'vkQuake.exe'}\n"
+            "    Run it from its folder; it uses the current directory as the game folder.\n"
+        )
 
     def test_unsupported_platform_skips_installation(self):
         """Unsupported targets should not download or install anything."""
@@ -248,7 +260,11 @@ class VkQuakeInstallTests(unittest.TestCase):
         image = fetch.call_args.args[1]
         mountpoint = commands.call_args_list[0].args[0][-2]
         self.assertEqual(commands.call_args_list, [
-            mock.call(["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, image], check=True, stdout=subprocess.DEVNULL),
+            mock.call(
+                ["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, image],
+                check=True,
+                stdout=subprocess.DEVNULL
+            ),
             mock.call(["ditto", mountpoint / "vkQuake.app", destination], check=True),
             mock.call(["hdiutil", "detach", mountpoint], check=False, stdout=subprocess.DEVNULL),
         ])
@@ -268,21 +284,27 @@ class VkQuakeInstallTests(unittest.TestCase):
         image = self.root / "vkQuake.dmg"
         image.write_bytes(b"disk image")
 
-        def run(command, **kwargs):
+        def run(command, **_kwargs):
             if command[:2] == ["hdiutil", "attach"]:
                 (command[-2] / "vkQuake.app").mkdir()
             elif command[0] == "ditto":
                 raise subprocess.CalledProcessError(1, command)
             return subprocess.CompletedProcess(command, 0)
 
-        with mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands:
-            with self.assertRaises(subprocess.CalledProcessError):
-                vkquake.install_vkquake_mac(image)
+        with (
+            mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands,
+            self.assertRaises(subprocess.CalledProcessError)
+        ):
+            vkquake.install_vkquake_mac(image)
+
         mountpoint = commands.call_args_list[0].args[0][-2]
+
         self.assertEqual(commands.call_count, 3)
+
         self.assertEqual(commands.call_args, mock.call(
             ["hdiutil", "detach", mountpoint], check=False, stdout=subprocess.DEVNULL
         ))
+
         self.assertFalse(mountpoint.parent.exists())
 
 
