@@ -37,11 +37,13 @@ class UserDataDirectoryTests(unittest.TestCase):
             ("Linux", {"XDG_DATA_HOME": str(custom)}, custom),
         ]
         for system, environment, expected in cases:
-            with self.subTest(system=system, environment=environment):
-                with mock.patch.object(config.platform, "system", return_value=system):
-                    with mock.patch.dict(os.environ, environment, clear=True):
-                        with mock.patch.object(config.Path, "home", return_value=home):
-                            self.assertEqual(config.user_data_dir(), expected)
+            with (
+                self.subTest(system=system, environment=environment),
+                mock.patch.object(config.platform, "system", return_value=system),
+                mock.patch.dict(os.environ, environment, clear=True),
+                mock.patch.object(config.Path, "home", return_value=home),
+            ):
+                self.assertEqual(config.user_data_dir(), expected)
 
 
 class VkQuakeReleaseTests(unittest.TestCase):
@@ -63,12 +65,14 @@ class VkQuakeReleaseTests(unittest.TestCase):
             ("Windows", "ARM64", assets[2]),
         ]
         for system, machine, expected in cases:
-            with self.subTest(system=system, machine=machine):
-                with mock.patch.object(vkquake.platform, "system", return_value=system):
-                    with mock.patch.object(vkquake.platform, "machine", return_value=machine):
-                        with mock.patch.object(vkquake, "fetch_json", return_value=release) as fetch:
-                            self.assertEqual(vkquake.vkquake_release(), ("1.32", expected))
-                            fetch.assert_called_once_with(config.VKQUAKE_RELEASE_URL)
+            with (
+                self.subTest(system=system, machine=machine),
+                mock.patch.object(vkquake.platform, "system", return_value=system),
+                mock.patch.object(vkquake.platform, "machine", return_value=machine),
+                mock.patch.object(vkquake, "fetch_json", return_value=release) as fetch,
+            ):
+                self.assertEqual(vkquake.vkquake_release(), ("1.32", expected))
+                fetch.assert_called_once_with(config.VKQUAKE_RELEASE_URL)
 
     def test_unsupported_platform_does_not_fetch_a_release(self):
         """Ensure unsupported architectures do not trigger a release lookup."""
