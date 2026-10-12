@@ -80,7 +80,7 @@ def get_resolution_windows():
         if user32.EnumDisplaySettingsA(primary_device, -1, ctypes.byref(dm)):
             return dm.dmPelsWidth, dm.dmPelsHeight, dm.dmDisplayFrequency
             
-    except Exception as e:
+    except (OSError, TypeError, ValueError, AttributeError) as e:
         print(f"Windows detection failed: {e}")
     return None
 
@@ -126,7 +126,9 @@ def get_resolution_linux():
                 rate_match = re.search(r'(\d+(?:\.\d+)?)\*', line)
                 r = int(float(rate_match.group(1))) if rate_match else 60
                 return w, h, r
-    except Exception as e:
+    except (
+        OSError, subprocess.CalledProcessError, UnicodeDecodeError, ValueError, TypeError
+    ) as e:
         print(f"Linux detection failed: {e}")
     return None
 
@@ -182,7 +184,9 @@ def get_resolution_macos():
             # Refresh Rate check - some output has it? 
             # If not, 60 is a safe default for config.
             
-    except Exception as e:
+    except (
+        OSError, subprocess.CalledProcessError, UnicodeDecodeError, ValueError, TypeError
+    ) as e:
         print(f"MacOS detection failed: {e}")
     return None
 
