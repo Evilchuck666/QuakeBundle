@@ -257,13 +257,13 @@ def prompt_video_settings_manual(use_desktop):
     """Return desktop mode settings or prompt for explicit display values."""
     if use_desktop.startswith('y'):
         return None, None, None, "1"
-    else:
-        return (
-            get_input("Width", "1920"),
-            get_input("Height", "1080"),
-            get_input("Refresh Rate", "60"),
-            "0",
-        )
+
+    return (
+        get_input("Width", "1920"),
+        get_input("Height", "1080"),
+        get_input("Refresh Rate", "60"),
+        "0",
+    )
 
 
 def get_video_settings_with_detection():
