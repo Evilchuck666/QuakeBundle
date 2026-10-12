@@ -219,9 +219,11 @@ class InstallerTests(unittest.TestCase):
                         on_line(line)
                     return code, lines
 
-                with patch.object(gamedata, "run_captured", side_effect=run) as captured:
-                    with self.assertRaisesRegex(SystemExit, "Could not download Quake"):
-                        gamedata.download_quake(self.steam / "steamcmd", "test-user", 2)
+                with (
+                    patch.object(gamedata, "run_captured", side_effect=run) as captured,
+                    self.assertRaisesRegex(SystemExit, "Could not download Quake")
+                ):
+                    gamedata.download_quake(self.steam / "steamcmd", "test-user", 2)
                 self.assertEqual(captured.call_count, 2)
 
 
