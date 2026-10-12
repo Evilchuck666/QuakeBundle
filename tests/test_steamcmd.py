@@ -105,11 +105,17 @@ class RosettaTests(unittest.TestCase):
 
     def test_missing_rosetta_reports_install_command(self):
         """Explain how to install Rosetta when it is missing."""
-        with patch.object(steamcmd.platform, "system", return_value="Darwin"), \
-             patch.object(steamcmd.platform, "machine", return_value="arm64"), \
-             patch.object(steamcmd.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
-            with self.assertRaisesRegex(SystemExit, "softwareupdate --install-rosetta"):
-                steamcmd.check_rosetta()
+        with (
+            patch.object(steamcmd.platform, "system", return_value="Darwin"),
+            patch.object(steamcmd.platform, "machine", return_value="arm64"),
+            patch.object(
+                steamcmd.subprocess,
+                "run",
+                return_value=subprocess.CompletedProcess([], 1),
+            ),
+            self.assertRaisesRegex(SystemExit, "softwareupdate --install-rosetta"),
+        ):
+            steamcmd.check_rosetta()
 
     def test_other_platforms_do_not_probe_rosetta(self):
         """Skip Rosetta checks on non-Apple Silicon systems."""
