@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from functools import partial
 from pathlib import Path
 from unittest.mock import Mock, call, patch
 
@@ -212,15 +213,18 @@ class InstallerTests(unittest.TestCase):
 
     def test_download_requires_both_success_message_and_zero_exit(self):
         """The game download should fail if the success message or exit code is missing."""
+        def run(returncode, output_lines, command, on_line):
+            del command
+            for line in output_lines:
+                on_line(line)
+            return returncode, output_lines
+
         for code, lines in ((0, []), (1, ["Success! App '2310' fully installed."])):
             with self.subTest(code=code):
-                def run(command, on_line):
-                    for line in lines:
-                        on_line(line)
-                    return code, lines
-
                 with (
-                    patch.object(gamedata, "run_captured", side_effect=run) as captured,
+                    patch.object(
+                        gamedata, "run_captured", side_effect=partial(run, code, lines)
+                    ) as captured,
                     self.assertRaisesRegex(SystemExit, "Could not download Quake")
                 ):
                     gamedata.download_quake(self.steam / "steamcmd", "test-user", 2)
