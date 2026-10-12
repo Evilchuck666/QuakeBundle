@@ -54,7 +54,9 @@ class VkQuakeReleaseTests(unittest.TestCase):
             release_asset("vkQuake-1.32_windows_x64.zip"),
             release_asset("vkQuake-1.32_windows_arm64.zip"),
         ]
+
         release = {"tag_name": "1.32", "assets": assets}
+
         cases = [
             ("Linux", "x86_64", assets[0]),
             ("Linux", "AMD64", assets[0]),
@@ -62,6 +64,7 @@ class VkQuakeReleaseTests(unittest.TestCase):
             ("Windows", "x86_64", assets[1]),
             ("Windows", "ARM64", assets[2]),
         ]
+
         for system, machine, expected in cases:
             with (
                 self.subTest(system=system, machine=machine),
