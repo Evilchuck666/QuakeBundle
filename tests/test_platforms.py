@@ -116,10 +116,12 @@ class VkQuakeReleaseTests(unittest.TestCase):
 
     def test_mac_missing_dmg_reports_an_error(self):
         """Ensure a missing Mac .dmg raises a clear install error."""
-        with mock.patch.object(vkquake.platform, "system", return_value="Darwin"):
-            with mock.patch.object(vkquake, "fetch_json", return_value=[]):
-                with self.assertRaisesRegex(SystemExit, "No vkQuake build found on Mac Source Ports"):
-                    vkquake.vkquake_release()
+        with (
+            mock.patch.object(vkquake.platform, "system", return_value="Darwin"),
+            mock.patch.object(vkquake, "fetch_json", return_value=[]),
+            self.assertRaisesRegex(SystemExit, "No vkQuake build found on Mac Source Ports"),
+        ):
+            vkquake.vkquake_release()
 
 
 class VkQuakeInstallTests(unittest.TestCase):
