@@ -226,11 +226,15 @@ class VkQuakeInstallTests(unittest.TestCase):
             raise OSError("download interrupted")
 
         asset = release_asset("vkQuake-1.32-x86_64.AppImage")
-        with mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)):
-            with mock.patch.object(vkquake.platform, "system", return_value="Linux"):
-                with mock.patch.object(vkquake, "fetch", side_effect=fail_download):
-                    with self.assertRaisesRegex(OSError, "download interrupted"):
-                        vkquake.install_vkquake()
+
+        with (
+            mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
+            mock.patch.object(vkquake.platform, "system", return_value="Linux"),
+            mock.patch.object(vkquake, "fetch", side_effect=fail_download),
+            self.assertRaisesRegex(OSError, "download interrupted"),
+        ):
+            vkquake.install_vkquake()
+
         self.assertEqual(destination.read_bytes(), b"working version")
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
 
