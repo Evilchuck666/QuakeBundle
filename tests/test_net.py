@@ -13,7 +13,10 @@ from quakebundle import net
 
 
 class DownloadTests(unittest.TestCase):
+    """Exercise local file downloads."""
+
     def test_fetch_copies_every_chunk_from_file_url(self):
+        """Fetch a file URL and copy every chunk without corruption."""
         payload = bytes(range(256)) * 3
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "source with spaces.bin"
@@ -31,6 +34,7 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(progress.update.call_args_list, [call(100)] * 7 + [call(68)])
 
     def test_fetch_json_reads_utf8_file_url(self):
+        """Fetch JSON from a file URL and decode UTF-8 text."""
         payload = {"name": "Quake — español", "assets": [{"size": 123}]}
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "release data.json"
@@ -39,9 +43,12 @@ class DownloadTests(unittest.TestCase):
 
 
 class OpenUrlTests(unittest.TestCase):
+    """Exercise URL-opening behavior and download errors."""
+
     url = "https://example.invalid/quake"
 
     def test_user_agent_is_sent(self):
+        """Send the configured user agent when opening a URL."""
         with patch.object(net.urllib.request, "urlopen", return_value=sentinel.response) as open_:
             self.assertIs(net.open_url(self.url), sentinel.response)
         request = open_.call_args.args[0]
@@ -49,6 +56,7 @@ class OpenUrlTests(unittest.TestCase):
         self.assertEqual(request.get_header("User-agent"), net.USER_AGENT)
 
     def test_certificate_failure_uses_curl_only_on_windows(self):
+        """Retry certificate failures with curl only on Windows."""
         error = urllib.error.URLError(ssl.SSLCertVerificationError("untrusted"))
         with (
             patch.object(net.urllib.request, "urlopen", side_effect=error),
@@ -59,6 +67,7 @@ class OpenUrlTests(unittest.TestCase):
         curl.assert_called_once_with(self.url)
 
     def test_certificate_failure_on_macos_explains_certificate_installation(self):
+        """Explain how to install certificates on macOS when TLS verification fails."""
         error = urllib.error.URLError(ssl.SSLCertVerificationError("untrusted"))
         with (
             patch.object(net.urllib.request, "urlopen", side_effect=error),
@@ -70,6 +79,7 @@ class OpenUrlTests(unittest.TestCase):
         curl.assert_not_called()
 
     def test_other_download_errors_report_url_and_reason(self):
+        """Report the failing URL and reason for non-certificate download errors."""
         for system in ("Linux", "Darwin", "Windows"):
             with self.subTest(system=system):
                 with (
@@ -84,9 +94,12 @@ class OpenUrlTests(unittest.TestCase):
 
 
 class CurlTests(unittest.TestCase):
+    """Exercise the curl-backed download helper."""
+
     url = "https://example.invalid/quake"
 
     def test_response_contains_download_and_closes_temporary_file(self):
+        """Return a response-like object containing the payload and close the temp file."""
         payload = b"Quake\x00\xff"
 
         def download(command, **kwargs):
@@ -110,6 +123,7 @@ class CurlTests(unittest.TestCase):
             )
 
     def test_failed_curl_closes_temporary_file(self):
+        """Close the temporary file even when curl is unavailable or fails."""
         cases = (
             (Mock(side_effect=FileNotFoundError()), "curl is not available"),
             (Mock(return_value=subprocess.CompletedProcess([], 22, stderr=b"not found\n")), "not found"),

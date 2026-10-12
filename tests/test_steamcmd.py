@@ -33,12 +33,16 @@ def steamcmd_archive(system, filename):
 
 
 class SteamcmdInstallationTests(unittest.TestCase):
+    """Exercise SteamCMD installation and archive extraction behavior."""
+
     def setUp(self):
+        """Create a temporary workspace for each test."""
         temporary = tempfile.TemporaryDirectory(prefix="quake steamcmd ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
 
     def test_installs_platform_archives_and_reuses_existing_executable(self):
+        """Install a platform archive once and reuse the extracted executable."""
         for system in ("Linux", "Darwin", "Windows"):
             with self.subTest(system=system):
                 directory = self.root / system / "steamcmd"
@@ -64,6 +68,7 @@ class SteamcmdInstallationTests(unittest.TestCase):
                     self.assertEqual(fetch.call_count, 1)
 
     def test_rejects_unsupported_platform_without_downloading(self):
+        """Reject unsupported OS targets before attempting a download."""
         with patch.object(steamcmd, "STEAMCMD_DIR", self.root / "steamcmd"), \
              patch.object(steamcmd.platform, "system", return_value="Plan9"), \
              patch.object(steamcmd, "fetch") as fetch:
@@ -72,6 +77,7 @@ class SteamcmdInstallationTests(unittest.TestCase):
             fetch.assert_not_called()
 
     def test_rejects_archive_without_expected_executable(self):
+        """Fail if the archive does not contain the expected SteamCMD executable."""
         for system in ("Linux", "Darwin", "Windows"):
             with self.subTest(system=system):
                 archive, _ = steamcmd_archive(system, "README.txt")
@@ -84,7 +90,10 @@ class SteamcmdInstallationTests(unittest.TestCase):
 
 
 class RosettaTests(unittest.TestCase):
+    """Exercise Rosetta detection and installation guidance for Apple Silicon."""
+
     def test_apple_silicon_probes_rosetta(self):
+        """Probe Rosetta on Apple Silicon systems when needed."""
         with patch.object(steamcmd.platform, "system", return_value="Darwin"), \
              patch.object(steamcmd.platform, "machine", return_value="arm64"), \
              patch.object(steamcmd.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
@@ -95,6 +104,7 @@ class RosettaTests(unittest.TestCase):
             )
 
     def test_missing_rosetta_reports_install_command(self):
+        """Explain how to install Rosetta when it is missing."""
         with patch.object(steamcmd.platform, "system", return_value="Darwin"), \
              patch.object(steamcmd.platform, "machine", return_value="arm64"), \
              patch.object(steamcmd.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
@@ -102,6 +112,7 @@ class RosettaTests(unittest.TestCase):
                 steamcmd.check_rosetta()
 
     def test_other_platforms_do_not_probe_rosetta(self):
+        """Skip Rosetta checks on non-Apple Silicon systems."""
         for system, machine in (("Darwin", "x86_64"), ("Linux", "aarch64"), ("Windows", "AMD64")):
             with self.subTest(system=system, machine=machine), \
                  patch.object(steamcmd.platform, "system", return_value=system), \
@@ -112,7 +123,10 @@ class RosettaTests(unittest.TestCase):
 
 
 class CapturedProcessTests(unittest.TestCase):
+    """Exercise native process capture and output tail handling."""
+
     def setUp(self):
+        """Create a temporary directory and patch the SteamCMD install path."""
         temporary = tempfile.TemporaryDirectory(prefix="quake capture ")
         self.addCleanup(temporary.cleanup)
         self.directory = Path(temporary.name)
@@ -121,6 +135,7 @@ class CapturedProcessTests(unittest.TestCase):
         self.addCleanup(directory_patch.stop)
 
     def test_native_capture_combines_streams_strips_ansi_and_keeps_tail(self):
+        """Capture stdout/stderr, strip ANSI codes, and retain the tail."""
         count = steamcmd.TAIL_LINES + 5
         code = (
             "import os, sys\n"
@@ -145,6 +160,7 @@ class CapturedProcessTests(unittest.TestCase):
         self.assertEqual(tail, expected[-steamcmd.TAIL_LINES:])
 
     def test_successful_process_with_no_output(self):
+        """Return an empty tail when a process exits cleanly without emitting output."""
         lines = []
         self.assertEqual(
             steamcmd.run_captured([sys.executable, "-c", "pass"], lines.append),
@@ -153,6 +169,7 @@ class CapturedProcessTests(unittest.TestCase):
         self.assertEqual(lines, [])
 
     def test_pipe_capture_keeps_carriage_returns_within_lines(self):
+        """Preserve carriage returns safely when splitting a Windows-style pipe stream."""
         code = (
             "import os\n"
             "os.write(1, b'first\\rsecond\\nthird\\r\\n')\n"
@@ -169,6 +186,7 @@ class CapturedProcessTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "PTY capture is only available on POSIX")
     def test_pty_capture_splits_carriage_returns_and_newlines(self):
+        """Split carriage returns and line breaks correctly in PTY-captured output."""
         code = "import os; os.write(1, b'first\\rsecond\\nthird\\r\\nlast')"
         lines = []
         result = steamcmd.run_captured([sys.executable, "-c", code], lines.append)

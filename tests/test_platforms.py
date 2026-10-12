@@ -16,11 +16,15 @@ from quakebundle import config, vkquake
 
 
 def release_asset(name):
+    """Return a minimal GitHub release asset payload for testing."""
     return {"name": name, "browser_download_url": "https://example.invalid/" + name}
 
 
 class UserDataDirectoryTests(unittest.TestCase):
+    """Verify platform-specific user-data directory selection."""
+
     def test_platform_paths_and_environment_overrides(self):
+        """Verify the default user-data directory and environment overrides."""
         home = Path(tempfile.gettempdir()) / "quakebundle-test-home"
         custom = home / "custom data"
         cases = [
@@ -41,7 +45,10 @@ class UserDataDirectoryTests(unittest.TestCase):
 
 
 class VkQuakeReleaseTests(unittest.TestCase):
+    """Verify vkQuake release selection for supported platforms."""
+
     def test_selects_asset_for_linux_and_windows_architectures(self):
+        """Verify the supported vkQuake asset is selected for Linux and Windows."""
         assets = [
             release_asset("vkQuake-1.32-x86_64.AppImage"),
             release_asset("vkQuake-1.32_windows_x64.zip"),
@@ -64,6 +71,7 @@ class VkQuakeReleaseTests(unittest.TestCase):
                             fetch.assert_called_once_with(config.VKQUAKE_RELEASE_URL)
 
     def test_unsupported_platform_does_not_fetch_a_release(self):
+        """Ensure unsupported architectures do not trigger a release lookup."""
         for system, machine in [("Linux", "aarch64"), ("Windows", "i686"), ("FreeBSD", "amd64")]:
             with self.subTest(system=system, machine=machine):
                 with mock.patch.object(vkquake.platform, "system", return_value=system):
@@ -73,6 +81,7 @@ class VkQuakeReleaseTests(unittest.TestCase):
                             fetch.assert_not_called()
 
     def test_missing_platform_asset_reports_the_required_build(self):
+        """Confirm the message names the exact build that is missing."""
         with mock.patch.object(vkquake.platform, "system", return_value="Linux"):
             with mock.patch.object(vkquake.platform, "machine", return_value="x86_64"):
                 with mock.patch.object(vkquake, "fetch_json", return_value={"tag_name": "1.32", "assets": []}):
@@ -80,6 +89,7 @@ class VkQuakeReleaseTests(unittest.TestCase):
                         vkquake.vkquake_release()
 
     def test_mac_uses_newest_available_dmg_across_pages_and_tag_separators(self):
+        """Verify the newest Mac release is picked across pagination and tag formats."""
         older_asset = release_asset("vkQuake-old.dmg")
         newest_asset = release_asset("vkQuake-current.dmg")
         for machine, separator in [("x86_64", "-"), ("arm64", "_")]:
@@ -105,6 +115,7 @@ class VkQuakeReleaseTests(unittest.TestCase):
                             ])
 
     def test_mac_missing_dmg_reports_an_error(self):
+        """Ensure a missing Mac .dmg raises a clear install error."""
         with mock.patch.object(vkquake.platform, "system", return_value="Darwin"):
             with mock.patch.object(vkquake, "fetch_json", return_value=[]):
                 with self.assertRaisesRegex(SystemExit, "No vkQuake build found on Mac Source Ports"):
@@ -112,7 +123,10 @@ class VkQuakeReleaseTests(unittest.TestCase):
 
 
 class VkQuakeInstallTests(unittest.TestCase):
+    """Verify the install steps for each supported vkQuake package format."""
+
     def setUp(self):
+        """Create a fresh temporary install root for each test."""
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -126,6 +140,7 @@ class VkQuakeInstallTests(unittest.TestCase):
         self.addCleanup(redirect.__exit__, None, None, None)
 
     def test_appimage_replaces_previous_version_and_is_executable(self):
+        """Verify AppImage updates replace the prior binary and keep it executable."""
         self.install_dir.mkdir(parents=True)
         destination = self.install_dir / "vkQuake.AppImage"
         destination.write_bytes(b"previous version")
@@ -156,6 +171,7 @@ class VkQuakeInstallTests(unittest.TestCase):
                          f'      "{destination}" -basedir "{self.install_dir}"\n')
 
     def test_windows_zip_installs_game_files_without_debug_symbols(self):
+        """Confirm Windows zip installs only supported game files and drops symbols."""
         asset = release_asset("vkQuake-1.32_windows_x64.zip")
 
         def download(url, path):
@@ -179,6 +195,7 @@ class VkQuakeInstallTests(unittest.TestCase):
                          "    Run it from its folder; it uses the current directory as the game folder.\n")
 
     def test_unsupported_platform_skips_installation(self):
+        """Unsupported targets should not download or install anything."""
         with mock.patch.object(vkquake, "vkquake_release", return_value=None):
             with mock.patch.object(vkquake, "fetch") as fetch:
                 vkquake.install_vkquake()
@@ -187,6 +204,7 @@ class VkQuakeInstallTests(unittest.TestCase):
         self.assertIn("skipping", self.output.getvalue())
 
     def test_download_failure_keeps_previous_appimage_and_cleans_temporary_files(self):
+        """A failed download must leave the previous AppImage intact."""
         self.install_dir.mkdir(parents=True)
         destination = self.install_dir / "vkQuake.AppImage"
         destination.write_bytes(b"working version")
@@ -205,6 +223,7 @@ class VkQuakeInstallTests(unittest.TestCase):
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
 
     def test_mac_install_mounts_copies_replaces_and_detaches_app(self):
+        """Install the DMG app into place and detach it cleanly afterward."""
         destination = self.install_dir / "vkQuake.app"
         destination.mkdir(parents=True)
         (destination / "obsolete").write_text("old bundle")
@@ -244,6 +263,7 @@ class VkQuakeInstallTests(unittest.TestCase):
                          "    Run it by opening vkQuake.app; it uses the folder it is in.\n")
 
     def test_mac_copy_failure_still_detaches_and_cleans_mount_directory(self):
+        """Even a copy failure should clean up the mounted DMG directory."""
         self.install_dir.mkdir(parents=True)
         image = self.root / "vkQuake.dmg"
         image.write_bytes(b"disk image")

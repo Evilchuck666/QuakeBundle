@@ -17,7 +17,10 @@ from quakebundle import gamedata
 
 
 class CommandLineTests(unittest.TestCase):
+    """Exercise the Quake single-player CLI entry point."""
+
     def run_cli(self, *arguments):
+        """Run the CLI in a temporary user directory."""
         with tempfile.TemporaryDirectory(prefix="quake cli ") as directory:
             env = os.environ.copy()
             env.pop("STEAM_USERNAME", None)
@@ -40,24 +43,30 @@ class CommandLineTests(unittest.TestCase):
             )
 
     def test_help_works_from_another_directory(self):
+        """The CLI help should work even when launched outside the project directory."""
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--attempts", result.stdout)
         self.assertIn("username", result.stdout)
 
     def test_username_is_required(self):
+        """The CLI should reject invocations that omit the Steam username."""
         result = self.run_cli()
         self.assertEqual(result.returncode, 2)
         self.assertIn("a Steam username is required", result.stderr)
 
     def test_attempts_must_be_an_integer(self):
+        """The attempts flag should validate its integer argument."""
         result = self.run_cli("--attempts", "invalid", "test-user")
         self.assertEqual(result.returncode, 2)
         self.assertIn("invalid int value", result.stderr)
 
 
 class InstallerTests(unittest.TestCase):
+    """Exercise the Quake single-player installation workflow."""
+
     def setUp(self):
+        """Create isolated game-install directories for each test."""
         temporary = tempfile.TemporaryDirectory(prefix="quake install ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -78,10 +87,12 @@ class InstallerTests(unittest.TestCase):
 
     @staticmethod
     def write(path, content=b"synthetic game data"):
+        """Write a synthetic game artifact to the given path."""
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
 
     def make_download(self):
+        """Populate the fake downloaded Quake files used by the tests."""
         for relative in gamedata.EXPECTED_FILES:
             self.write(self.rerelease / relative)
         self.write(self.rerelease / "id1/music/track02.ogg", b"music")
@@ -92,6 +103,7 @@ class InstallerTests(unittest.TestCase):
 
     @contextlib.contextmanager
     def main_dependencies(self, arguments, username="environment-user"):
+        """Patch the CLI dependencies needed when exercising main()."""
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(sys, "argv", ["singleplayer.py", *arguments]))
             stack.enter_context(patch.dict(os.environ, {"STEAM_USERNAME": username}))
@@ -108,6 +120,7 @@ class InstallerTests(unittest.TestCase):
             yield calls, output
 
     def test_main_installs_rerelease_preserves_saves_and_cleans_up(self):
+        """Installation should copy the re-release, keep user files, and clean up temp folders."""
         self.make_download()
         self.write(self.install / "id1/pak0.pak", b"old data")
         self.write(self.install / "id1/save.sav", b"saved game")
@@ -137,6 +150,7 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse((self.install / "Quake_x64.exe").exists())
 
     def test_main_uses_environment_username_and_default_attempts(self):
+        """The main entry point should use the environment username and default attempt count."""
         self.make_download()
         with self.main_dependencies([]) as (calls, _):
             singleplayer.main()
@@ -146,6 +160,7 @@ class InstallerTests(unittest.TestCase):
             )
 
     def test_missing_game_data_preserves_download_for_retry(self):
+        """Missing game files should leave the downloaded directory intact for retry."""
         self.make_download()
         (self.rerelease / "rogue/pak0.pak").unlink()
         with self.main_dependencies([]) as (calls, _):
@@ -157,6 +172,7 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse(self.install.exists())
 
     def test_download_failure_stops_before_installation_and_cleanup(self):
+        """A download failure should stop before any install or cleanup phase runs."""
         self.make_download()
         with self.main_dependencies([]) as (calls, _):
             calls.download_quake.side_effect = SystemExit("download failed")
@@ -168,6 +184,7 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse(self.install.exists())
 
     def test_download_retries_and_forces_windows_depots(self):
+        """SteamCMD downloads should retry failures and force Windows depot downloads."""
         responses = iter([
             (1, ["temporary failure"]),
             (0, [
@@ -194,6 +211,7 @@ class InstallerTests(unittest.TestCase):
         ])
 
     def test_download_requires_both_success_message_and_zero_exit(self):
+        """The game download should fail if the success message or exit code is missing."""
         for code, lines in ((0, []), (1, ["Success! App '2310' fully installed."])):
             with self.subTest(code=code):
                 def run(command, on_line):
