@@ -34,7 +34,7 @@ class DownloadProgressTests(unittest.TestCase):
             bars.append(bar)
             return bar
 
-        def run(command, on_line):
+        def run(_command, on_line):
             on_line("Logging in...")
             self.assertEqual(bars, [])
             for state, downloaded, total in (
@@ -56,14 +56,15 @@ class DownloadProgressTests(unittest.TestCase):
             self.assertEqual(bars[0].desc, "    verifying")
             return 0, []
 
-        with patch.object(gamedata, "byte_bar", side_effect=make_bar):
-            with patch.object(gamedata, "run_captured", side_effect=run):
-                gamedata.download_quake(Path("steamcmd"), "test-user", 1)
+        with patch.object(gamedata, "byte_bar", side_effect=make_bar), patch.object(
+            gamedata, "run_captured", side_effect=run
+        ):
+            gamedata.download_quake(Path("steamcmd"), "test-user", 1)
         self.assertEqual(self.output.getvalue(), "    ✔ installed (2.0 MB)\n")
 
     def test_redirected_output_handles_disabled_bars_and_keeps_last_known_size(self):
         """Keep the last known byte count when status updates arrive without a visible bar."""
-        def run(command, on_line):
+        def run(_command, on_line):
             for line in (
                 "Update state (0x61) downloading, progress: 0.00 (0 / 1048576)",
                 "Update state (0x81) verifying, progress: 0.00 (0 / 0)",
