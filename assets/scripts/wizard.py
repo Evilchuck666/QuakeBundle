@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import os
 import platform
-import subprocess
 import re
+import subprocess
 
 
 VIDEO_KEYS = {"vid_width", "vid_height", "vid_displayfrequency"}
