@@ -73,12 +73,14 @@ class VkQuakeReleaseTests(unittest.TestCase):
     def test_unsupported_platform_does_not_fetch_a_release(self):
         """Ensure unsupported architectures do not trigger a release lookup."""
         for system, machine in [("Linux", "aarch64"), ("Windows", "i686"), ("FreeBSD", "amd64")]:
-            with self.subTest(system=system, machine=machine):
-                with mock.patch.object(vkquake.platform, "system", return_value=system):
-                    with mock.patch.object(vkquake.platform, "machine", return_value=machine):
-                        with mock.patch.object(vkquake, "fetch_json") as fetch:
-                            self.assertIsNone(vkquake.vkquake_release())
-                            fetch.assert_not_called()
+            with (
+                self.subTest(system=system, machine=machine),
+                mock.patch.object(vkquake.platform, "system", return_value=system),
+                mock.patch.object(vkquake.platform, "machine", return_value=machine),
+                mock.patch.object(vkquake, "fetch_json") as fetch,
+            ):
+                self.assertIsNone(vkquake.vkquake_release())
+                fetch.assert_not_called()
 
     def test_missing_platform_asset_reports_the_required_build(self):
         """Confirm the message names the exact build that is missing."""
