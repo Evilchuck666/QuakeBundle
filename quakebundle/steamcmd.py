@@ -119,38 +119,39 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
     else:
         master, output = None, subprocess.PIPE
 
-    proc = subprocess.Popen(
+    with subprocess.Popen(
         command,
         cwd=STEAMCMD_DIR,
         stdin=subprocess.DEVNULL,
         stdout=output,
         stderr=subprocess.STDOUT,
-    )
+    ) as proc:
+        if master is not None:
+            os.close(output)
+            pending = b""
 
-    if master is not None:
-        os.close(output)
-        pending = b""
+            while True:
+                try:
+                    chunk = os.read(master, 4096)
+                except OSError:  # EIO once steamcmd closes the terminal
+                    break
 
-        while True:
-            try:
-                chunk = os.read(master, 4096)
-            except OSError:  # EIO once steamcmd closes the terminal
-                break
-            if not chunk:
-                break
-            *lines, pending = re.split(rb"[\r\n]", pending + chunk)
-            for raw in lines:
-                handle(raw)
+                if not chunk:
+                    break
 
-        handle(pending)
-        os.close(master)
-    else:
-        # Windows has no pseudo-terminals in the standard library, so progress
-        # may arrive in bursts here.
-        with proc.stdout:
-            for raw in proc.stdout:
-                handle(raw)
-    return proc.wait(), list(tail)
+                *lines, pending = re.split(rb"[\r\n]", pending + chunk)
+                for raw in lines:
+                    handle(raw)
+
+            handle(pending)
+            os.close(master)
+        else:
+            # Windows has no pseudo-terminals in the standard library, so progress
+            # may arrive in bursts here.
+            with proc.stdout:
+                for raw in proc.stdout:
+                    handle(raw)
+        return proc.wait(), list(tail)
 
 
 def print_tail(tail: list[str]) -> None:
