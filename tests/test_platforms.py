@@ -82,11 +82,15 @@ class VkQuakeReleaseTests(unittest.TestCase):
 
     def test_missing_platform_asset_reports_the_required_build(self):
         """Confirm the message names the exact build that is missing."""
-        with mock.patch.object(vkquake.platform, "system", return_value="Linux"):
-            with mock.patch.object(vkquake.platform, "machine", return_value="x86_64"):
-                with mock.patch.object(vkquake, "fetch_json", return_value={"tag_name": "1.32", "assets": []}):
-                    with self.assertRaisesRegex(SystemExit, r"1\.32 has no \*-x86_64\.AppImage build"):
-                        vkquake.vkquake_release()
+        with (
+            mock.patch.object(vkquake.platform, "system", return_value="Linux"),
+            mock.patch.object(vkquake.platform, "machine", return_value="x86_64"),
+            mock.patch.object(
+                vkquake, "fetch_json", return_value={"tag_name": "1.32", "assets": []}
+            ),
+            self.assertRaisesRegex(SystemExit, r"1\.32 has no \*-x86_64\.AppImage build"),
+        ):
+            vkquake.vkquake_release()
 
     def test_mac_uses_newest_available_dmg_across_pages_and_tag_separators(self):
         """Verify the newest Mac release is picked across pagination and tag formats."""
