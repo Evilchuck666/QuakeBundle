@@ -252,11 +252,15 @@ class VkQuakeInstallTests(unittest.TestCase):
                 shutil.copytree(command[1], command[2])
             return subprocess.CompletedProcess(command, 0)
 
-        with mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)):
-            with mock.patch.object(vkquake.platform, "system", return_value="Darwin"):
-                with mock.patch.object(vkquake, "fetch", side_effect=lambda url, path: path.write_bytes(b"disk image")) as fetch:
-                    with mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands:
-                        vkquake.install_vkquake()
+        with (
+            mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
+            mock.patch.object(vkquake.platform, "system", return_value="Darwin"),
+            mock.patch.object(
+                vkquake, "fetch", side_effect=lambda url, path: path.write_bytes(b"disk image")
+            ) as fetch,
+            mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands,
+        ):
+            vkquake.install_vkquake()
         image = fetch.call_args.args[1]
         mountpoint = commands.call_args_list[0].args[0][-2]
         self.assertEqual(commands.call_args_list, [
