@@ -241,7 +241,7 @@ class VkQuakeInstallTests(unittest.TestCase):
         (destination / "obsolete").write_text("old bundle")
         asset = release_asset("vkQuake.dmg")
 
-        def run(command, **kwargs):
+        def run(command, **_kwargs):
             if command[:2] == ["hdiutil", "attach"]:
                 app = command[-2] / "vkQuake.app"
                 app.mkdir()
