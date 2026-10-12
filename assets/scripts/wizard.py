@@ -285,14 +285,18 @@ def get_video_settings_with_detection():
     return vid_width, vid_height, vid_freq, vid_usedesktop
 
 
-def build_updates_dict(name, team, sensitivity, vid_width, vid_height, vid_freq, vid_usedesktop):
+def build_updates_dict(name, team, sensitivity, video_settings):
     """Build configuration updates, omitting unspecified video values."""
     updates = {
         "name": name,
         "team": team,
         "sensitivity": sensitivity,
-        "vid_usedesktopres": vid_usedesktop
+        "vid_usedesktopres": video_settings.get("vid_usedesktopres")
     }
+
+    vid_width = video_settings.get("vid_width")
+    vid_height = video_settings.get("vid_height")
+    vid_freq = video_settings.get("vid_displayfrequency")
 
     if vid_width is not None:
         updates["vid_width"] = vid_width
@@ -425,10 +429,12 @@ def main():
         name=name,
         team=team,
         sensitivity=sensitivity,
-        vid_width=vid_width,
-        vid_height=vid_height,
-        vid_freq=vid_freq,
-        vid_usedesktop=vid_usedesktop
+        video_settings={
+            "vid_width": vid_width,
+            "vid_height": vid_height,
+            "vid_displayfrequency": vid_freq,
+            "vid_usedesktopres": vid_usedesktop,
+        }
     )
 
     config_path = get_player_cfg_path()
