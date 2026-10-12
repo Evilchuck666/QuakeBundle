@@ -4,7 +4,6 @@ import platform
 import re
 import subprocess
 
-
 VIDEO_KEYS = {"vid_width", "vid_height", "vid_displayfrequency"}
 
 
