@@ -81,21 +81,25 @@ class OpenUrlTests(unittest.TestCase):
     def test_other_download_errors_report_url_and_reason(self):
         """Report the failing URL and reason for non-certificate download errors."""
         for system in ("Linux", "Darwin", "Windows"):
-            with self.subTest(system=system):
-                with (
-                    patch.object(net.urllib.request, "urlopen", side_effect=urllib.error.URLError("offline")),
-                    patch.object(net.platform, "system", return_value=system),
-                    patch.object(net, "curl_get") as curl,
-                ):
-                    with self.assertRaises(SystemExit) as error:
-                        net.open_url(self.url)
+            with (
+                self.subTest(system=system),
+                patch.object(
+                    net.urllib.request,
+                    "urlopen",
+                    side_effect=urllib.error.URLError("offline"),
+                ),
+                patch.object(net.platform, "system", return_value=system),
+                patch.object(net, "curl_get") as curl,
+                self.assertRaises(SystemExit) as error,
+            ):
+                net.open_url(self.url)
 
-                    self.assertEqual(
-                        str(error.exception),
-                        f"Could not download {self.url}: offline"
-                    )
+                self.assertEqual(
+                    str(error.exception),
+                    f"Could not download {self.url}: offline",
+                )
 
-                    curl.assert_not_called()
+                curl.assert_not_called()
 
 
 class CurlTests(unittest.TestCase):
