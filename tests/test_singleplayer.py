@@ -194,7 +194,7 @@ class InstallerTests(unittest.TestCase):
             ]),
         ])
 
-        def run(command, on_line):
+        def run(_command, on_line):
             code, lines = next(responses)
             for line in lines:
                 on_line(line)
