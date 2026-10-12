@@ -13,7 +13,10 @@ from quakebundle import gamedata
 
 
 class DownloadProgressTests(unittest.TestCase):
+    """Cover download progress with visible and disabled progress bars."""
+
     def setUp(self):
+        """Set up a temporary download directory and capture stdout."""
         temporary = tempfile.TemporaryDirectory(prefix="quake data ")
         self.addCleanup(temporary.cleanup)
         stack = contextlib.ExitStack()
@@ -22,6 +25,7 @@ class DownloadProgressTests(unittest.TestCase):
         self.output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
 
     def test_progress_starts_lazily_and_tracks_state_and_size_changes(self):
+        """Ensure the download bar appears only when progress data starts and tracks updates."""
         bars = []
 
         def make_bar(**kwargs):
@@ -58,6 +62,7 @@ class DownloadProgressTests(unittest.TestCase):
         self.assertEqual(self.output.getvalue(), "    ✔ installed (2.0 MB)\n")
 
     def test_redirected_output_handles_disabled_bars_and_keeps_last_known_size(self):
+        """Keep the last known byte count when status updates arrive without a visible bar."""
         def run(command, on_line):
             for line in (
                 "Update state (0x61) downloading, progress: 0.00 (0 / 1048576)",
