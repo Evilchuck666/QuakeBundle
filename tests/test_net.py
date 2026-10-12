@@ -73,9 +73,9 @@ class OpenUrlTests(unittest.TestCase):
             patch.object(net.urllib.request, "urlopen", side_effect=error),
             patch.object(net.platform, "system", return_value="Darwin"),
             patch.object(net, "curl_get") as curl,
+            self.assertRaisesRegex(SystemExit, "Install Certificates.command"),
         ):
-            with self.assertRaisesRegex(SystemExit, "Install Certificates.command"):
-                net.open_url(self.url)
+            net.open_url(self.url)
         curl.assert_not_called()
 
     def test_other_download_errors_report_url_and_reason(self):
