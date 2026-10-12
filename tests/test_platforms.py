@@ -208,10 +208,13 @@ class VkQuakeInstallTests(unittest.TestCase):
 
     def test_unsupported_platform_skips_installation(self):
         """Unsupported targets should not download or install anything."""
-        with mock.patch.object(vkquake, "vkquake_release", return_value=None):
-            with mock.patch.object(vkquake, "fetch") as fetch:
-                vkquake.install_vkquake()
-                fetch.assert_not_called()
+        with  (
+            mock.patch.object(vkquake, "vkquake_release", return_value=None),
+            mock.patch.object(vkquake, "fetch") as fetch
+        ):
+            vkquake.install_vkquake()
+            fetch.assert_not_called()
+
         self.assertFalse(self.install_dir.exists())
         self.assertIn("skipping", self.output.getvalue())
 
