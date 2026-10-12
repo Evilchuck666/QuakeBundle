@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = ["tqdm"]
+# ///
 """Download Quake, with its expansions, with steamcmd into the user's data directory.
 
 It also installs the latest release of the vkQuake engine for the current
@@ -6,6 +10,8 @@ system, inside the game data.
 
 Usage:
     python3 singleplayer.py [--attempts N] STEAM_USERNAME
+
+It needs tqdm (pip install tqdm); "uv run singleplayer.py" installs it on the fly.
 
 The username can also be given in the STEAM_USERNAME environment variable.
 
@@ -40,12 +46,16 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import time
 import urllib.error
 import urllib.request
 import urllib.response
 import zipfile
 from pathlib import Path
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    sys.exit('This script needs tqdm: install it with "pip install tqdm", or run "uv run singleplayer.py"')
 
 
 def user_data_dir() -> Path:
@@ -100,42 +110,19 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 TAIL_LINES = 25
 
 DOWNLOAD_CHUNK_SIZE = 1024 * 1024
-PROGRESS_INTERVAL = 0.1
 
 
-class Progress:
-    """A single console line that is redrawn in place on a terminal."""
+def progress_bar(**kwargs) -> tqdm:
+    """Return a tqdm bar that is hidden when stdout is not a terminal.
 
-    def __init__(self) -> None:
-        self.tty = sys.stdout.isatty()
-        self._last_update = float("-inf")
-
-    def update(self, text: str, *, force: bool = False) -> None:
-        """Redraw at most ten times per second, unless forced."""
-        if not self.tty:
-            return
-        now = time.monotonic()
-        if not force and now - self._last_update < PROGRESS_INTERVAL:
-            return
-        width = shutil.get_terminal_size().columns - 1
-        sys.stdout.write("\r" + text[:width].ljust(width))
-        sys.stdout.flush()
-        self._last_update = now
-
-    def done(self, text: str) -> None:
-        """Finish the current progress line and leave the terminal on a new line."""
-        if self.tty:
-            self.update(text, force=True)
-            sys.stdout.write("\n")
-        else:
-            print(text)
-        sys.stdout.flush()
+    The bar is removed when closed, so the caller prints the outcome instead.
+    """
+    return tqdm(file=sys.stdout, disable=None, leave=False, dynamic_ncols=True, **kwargs)
 
 
-def progress_bar(fraction: float, width: int = 24) -> str:
-    """Return a visual progress bar for a value between 0.0 and 1.0."""
-    filled = round(max(0.0, min(1.0, fraction)) * width)
-    return "█" * filled + "░" * (width - filled)
+def byte_bar(**kwargs) -> tqdm:
+    """Return a progress bar that counts bytes."""
+    return progress_bar(unit="B", unit_scale=True, unit_divisor=1024, **kwargs)
 
 
 def mb(size: int) -> str:
@@ -213,16 +200,15 @@ def fetch_json(url: str):
 
 def fetch(url: str, destination: Path) -> None:
     """Download a URL to disk using a fixed-size buffer."""
-    progress = Progress()
     downloaded = 0
     with open_url(url) as response, destination.open("wb") as output:
         total = int(response.headers.get("Content-Length", 0))
-        while chunk := response.read(DOWNLOAD_CHUNK_SIZE):
-            output.write(chunk)
-            downloaded += len(chunk)
-            if total and progress.tty:
-                progress.update(f"    {progress_bar(downloaded / total)} {mb(downloaded)} / {mb(total)}")
-    progress.done(f"    Downloaded {mb(downloaded)}")
+        with byte_bar(total=total or None, desc="    Downloading") as bar:
+            while chunk := response.read(DOWNLOAD_CHUNK_SIZE):
+                output.write(chunk)
+                downloaded += len(chunk)
+                bar.update(len(chunk))
+    print(f"    Downloaded {mb(downloaded)}")
 
 
 def install_steamcmd() -> Path:
@@ -339,17 +325,17 @@ def print_tail(tail: list[str]) -> None:
 
 def update_steamcmd(steamcmd: Path) -> None:
     """Ensure the bundled steamcmd installation is current."""
-    progress = Progress()
+    with progress_bar(total=100, bar_format="    {l_bar}{bar}|") as bar:
 
-    def on_line(line: str) -> None:
-        if match := SELF_UPDATE_RE.match(line):
-            percent = int(match[1])
-            progress.update(f"    {progress_bar(percent / 100)} {percent:3d}%  {match[2]}")
+        def on_line(line: str) -> None:
+            if match := SELF_UPDATE_RE.match(line):
+                bar.set_description_str(match[2], refresh=False)
+                bar.update(int(match[1]) - bar.n)
 
-    # steamcmd exits with a non-zero code after updating itself, so the
-    # result is not checked; a broken steamcmd fails in the next steps.
-    run_captured([str(steamcmd), "+quit"], on_line)
-    progress.done("    steamcmd is up to date")
+        # steamcmd exits with a non-zero code after updating itself, so the
+        # result is not checked; a broken steamcmd fails in the next steps.
+        run_captured([str(steamcmd), "+quit"], on_line)
+    print("    steamcmd is up to date")
 
 
 def login(steamcmd: Path, username: str) -> None:
@@ -388,31 +374,46 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
     for attempt in range(1, attempts + 1):
         if attempt > 1:
             print(f"    Retrying (attempt {attempt}/{attempts})")
-        progress = Progress()
+        # Created on the first progress line, so no empty bar is shown while
+        # steamcmd logs in.
+        bar = None
+        state = None
         finished = False
         total_size = 0
 
         def on_line(line: str) -> None:
-            nonlocal finished, total_size
+            nonlocal bar, state, finished, total_size
             if finished:
                 return
             if match := PROGRESS_RE.search(line):
-                state, downloaded, total = match[1], int(match[3]), int(match[4])
+                downloaded, total = int(match[3]), int(match[4])
                 total_size = total or total_size
-                fraction = downloaded / total if total else 0.0
-                sizes = f"{downloaded / 1024 / 1024:,.1f}/{mb(total)}" if total else ""
-                progress.update(f"    {progress_bar(fraction)} {fraction * 100:5.1f}%  {state}  {sizes}")
+                if bar is None:
+                    state = match[1]
+                    bar = byte_bar(total=total or None, desc=f"    {state}")
+                # steamcmd goes through several states (preallocating,
+                # downloading, verifying...), each counting from zero.
+                elif match[1] != state or (total or None) != bar.total:
+                    state = match[1]
+                    # Before reset(), which redraws the bar.
+                    bar.set_description_str(f"    {state}", refresh=False)
+                    bar.reset(total=total or None)
+                bar.update(downloaded - bar.n)
             elif match := SUCCESS_RE.search(line):
+                if bar is not None:
+                    bar.close()
                 status = "up to date" if "up to date" in match[2] else "installed"
                 size = f" ({mb(total_size)})" if total_size else ""
-                progress.done(f"    ✔ {status}{size}")
+                print(f"    ✔ {status}{size}")
                 finished = True
 
         returncode, tail = run_captured(command, on_line)
+        if bar is not None:
+            bar.close()
         if returncode == 0 and finished:
             return
         if not finished:
-            progress.done(f"    ✘ failed (steamcmd exit code {returncode})")
+            print(f"    ✘ failed (steamcmd exit code {returncode})")
         print_tail(tail)
     sys.exit("Could not download Quake with steamcmd")
 
