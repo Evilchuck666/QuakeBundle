@@ -29,10 +29,10 @@ class DownloadProgressTests(unittest.TestCase):
         bars = []
 
         def make_bar(**kwargs):
-            bar = tqdm(file=io.StringIO(), **kwargs)
-            self.addCleanup(bar.close)
-            bars.append(bar)
-            return bar
+            progress_bar = tqdm(file=io.StringIO(), **kwargs)
+            self.addCleanup(progress_bar.close)
+            bars.append(progress_bar)
+            return progress_bar
 
         def run(_command, on_line):
             on_line("Logging in...")
