@@ -118,13 +118,18 @@ def install_vkquake() -> None:
                         archive.extract(info, INSTALL_SINGLE_PLAYER_DIR)
 
             installed = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.exe"
-            instructions = "    Run it from its folder; it uses the current directory as the game folder."
+
+            instructions = "    Run it from its folder; "
+            instructions += "it uses the current directory as the game folder."
         else:
             # Fixed name, so the command to run it doesn't change with each version.
             installed = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.AppImage"
+
             download.chmod(0o755)
             os.replace(download, installed)
-            instructions = f'    Run it with:\n      "{installed}" -basedir "{INSTALL_SINGLE_PLAYER_DIR}"'
+
+            instructions = f'    Run it with:\n      "{installed}"'
+            instructions += f' -basedir "{INSTALL_SINGLE_PLAYER_DIR}"'
 
         print(f"    ✔ Installed {installed}")
         print(instructions)
