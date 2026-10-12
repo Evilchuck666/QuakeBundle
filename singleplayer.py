@@ -62,7 +62,7 @@ def user_data_dir() -> Path:
 APP_ID = 2310
 
 BASE_DIR = user_data_dir() / "quake"
-INSTALL_DIR = BASE_DIR / "singleplayer"
+INSTALL_SINGLE_PLAYER_DIR = BASE_DIR / "singleplayer"
 STEAMCMD_DIR = BASE_DIR / "steamcmd"
 
 # steamcmd downloads the whole Steam install here; only the re-release game
@@ -455,11 +455,11 @@ def install_game_data() -> None:
         if entry.path not in file_links and not entry.is_file(follow_symlinks=False):
             continue
         if directory != previous_directory:
-            destination = INSTALL_DIR / directory.relative_to(RERELEASE_DIR)
+            destination = INSTALL_SINGLE_PLAYER_DIR / directory.relative_to(RERELEASE_DIR)
             destination.mkdir(parents=True, exist_ok=True)
             previous_directory = directory
         os.replace(entry.path, destination / entry.name)
-    print(f"    ✔ {count} files, {mb(size)} in {INSTALL_DIR}")
+    print(f"    ✔ {count} files, {mb(size)} in {INSTALL_SINGLE_PLAYER_DIR}")
 
 
 def vkquake_release() -> tuple[str, dict] | None:
@@ -509,7 +509,7 @@ def install_vkquake_mac(image: Path) -> Path:
         )
         try:
             app = next(mountpoint.glob("*.app"))
-            dest = INSTALL_DIR / app.name
+            dest = INSTALL_SINGLE_PLAYER_DIR / app.name
             shutil.rmtree(dest, ignore_errors=True)
             # ditto keeps the bundle's symlinks, permissions and signature.
             subprocess.run(["ditto", app, dest], check=True)
@@ -528,10 +528,10 @@ def install_vkquake() -> None:
 
     print(f"    vkQuake {version} ({asset['name']})")
     system = platform.system()
-    INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+    INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
     # Keep the temporary file on the install filesystem so the AppImage can
     # replace the previous version without an extra copy or a partial write.
-    with tempfile.TemporaryDirectory(dir=INSTALL_DIR) as tmp:
+    with tempfile.TemporaryDirectory(dir=INSTALL_SINGLE_PLAYER_DIR) as tmp:
         download = Path(tmp) / ("vkQuake.dmg" if system == "Darwin" else "vkQuake.download")
         fetch(asset["browser_download_url"], download)
 
@@ -544,17 +544,17 @@ def install_vkquake() -> None:
                 for info in archive.infolist():
                     # Debug symbols, not needed to play.
                     if not info.filename.endswith(".pdb"):
-                        archive.extract(info, INSTALL_DIR)
-            print(f"    ✔ Installed {INSTALL_DIR / 'vkQuake.exe'}")
+                        archive.extract(info, INSTALL_SINGLE_PLAYER_DIR)
+            print(f"    ✔ Installed {INSTALL_SINGLE_PLAYER_DIR / 'vkQuake.exe'}")
             print("    Run it from its folder; it uses the current directory as the game folder.")
         else:
             # Fixed name, so the command to run it doesn't change with each version.
-            appimage = INSTALL_DIR / "vkQuake"
+            appimage = INSTALL_SINGLE_PLAYER_DIR / "vkQuake"
             download.chmod(0o755)
             os.replace(download, appimage)
             print(f"    ✔ Installed {appimage}")
             print("    Run it with:")
-            print(f'      "{appimage}" -basedir "{INSTALL_DIR}"')
+            print(f'      "{appimage}" -basedir "{INSTALL_SINGLE_PLAYER_DIR}"')
 
 
 def main() -> None:
