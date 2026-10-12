@@ -89,7 +89,12 @@ class OpenUrlTests(unittest.TestCase):
                 ):
                     with self.assertRaises(SystemExit) as error:
                         net.open_url(self.url)
-                    self.assertEqual(str(error.exception), f"Could not download {self.url}: offline")
+
+                    self.assertEqual(
+                        str(error.exception),
+                        f"Could not download {self.url}: offline"
+                    )
+
                     curl.assert_not_called()
 
 
@@ -126,14 +131,18 @@ class CurlTests(unittest.TestCase):
         """Close the temporary file even when curl is unavailable or fails."""
         cases = (
             (Mock(side_effect=FileNotFoundError()), "curl is not available"),
-            (Mock(return_value=subprocess.CompletedProcess([], 22, stderr=b"not found\n")), "not found"),
+            (Mock(
+                return_value=subprocess.CompletedProcess(
+                    [], 22, stderr=b"not found\n"
+                )
+            ), "not found"),
         )
         for run, message in cases:
             with self.subTest(message=message), tempfile.TemporaryFile() as temporary:
                 with (
                     patch.object(net.tempfile, "TemporaryFile", return_value=temporary),
                     patch.object(net.subprocess, "run", run),
+                    self.assertRaisesRegex(SystemExit, message),
                 ):
-                    with self.assertRaisesRegex(SystemExit, message):
-                        net.curl_get(self.url)
+                    net.curl_get(self.url)
                 self.assertTrue(temporary.closed)
