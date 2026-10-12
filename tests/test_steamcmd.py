@@ -152,6 +152,30 @@ class CapturedProcessTests(unittest.TestCase):
         )
         self.assertEqual(lines, [])
 
+    def test_pipe_capture_keeps_carriage_returns_within_lines(self):
+        code = (
+            "import os\n"
+            "os.write(1, b'first\\rsecond\\nthird\\r\\n')\n"
+            "os.write(2, b'stderr\\n')\n"
+            "os.write(1, b'last')\n"
+        )
+        lines = []
+        with patch.object(steamcmd, "os") as system_os:
+            system_os.name = "nt"
+            result = steamcmd.run_captured([sys.executable, "-c", code], lines.append)
+        expected = ["first\rsecond", "third", "stderr", "last"]
+        self.assertEqual(lines, expected)
+        self.assertEqual(result, (0, expected))
+
+    @unittest.skipUnless(os.name == "posix", "PTY capture is only available on POSIX")
+    def test_pty_capture_splits_carriage_returns_and_newlines(self):
+        code = "import os; os.write(1, b'first\\rsecond\\nthird\\r\\nlast')"
+        lines = []
+        result = steamcmd.run_captured([sys.executable, "-c", code], lines.append)
+        expected = ["first", "second", "third", "last"]
+        self.assertEqual(lines, expected)
+        self.assertEqual(result, (0, expected))
+
 
 if __name__ == "__main__":
     unittest.main()

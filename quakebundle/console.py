@@ -7,9 +7,10 @@ import sys
 try:
     from tqdm import tqdm
 except ImportError:
-    MESSAGE = 'This script needs tqdm: install it with "pip install tqdm"'
-    MESSAGE += ', or run "uv run singleplayer.py"'
-    sys.exit(MESSAGE)
+    sys.exit(
+        'This script needs tqdm: install it with "pip install tqdm"'
+        ', or run "uv run singleplayer.py"'
+    )
 
 
 def progress_bar(**kwargs) -> tqdm:

@@ -43,13 +43,12 @@ def vkquake_release() -> tuple[str, dict] | None:
 
         sys.exit("No vkQuake build found on Mac Source Ports")
 
-    if system == "Linux" and machine in ("x86_64", "amd64"):
-        suffix = "-x86_64.AppImage"
-    elif system == "Windows" and machine == "arm64":
-        suffix = "_windows_arm64.zip"
-    elif system == "Windows" and machine in ("amd64", "x86_64"):
-        suffix = "_windows_x64.zip"
-    else:
+    suffix = {
+        ("Linux", "x86_64"): "-x86_64.AppImage",
+        ("Windows", "arm64"): "_windows_arm64.zip",
+        ("Windows", "x86_64"): "_windows_x64.zip",
+    }.get((system, "x86_64" if machine == "amd64" else machine))
+    if suffix is None:
         return None
 
     release = fetch_json(VKQUAKE_RELEASE_URL)
@@ -109,10 +108,8 @@ def install_vkquake() -> None:
         fetch(asset["browser_download_url"], download)
 
         if system == "Darwin":
-            app = install_vkquake_mac(download)
-
-            print(f"    ✔ Installed {app}")
-            print("    Run it by opening vkQuake.app; it uses the folder it is in.")
+            installed = install_vkquake_mac(download)
+            instructions = "    Run it by opening vkQuake.app; it uses the folder it is in."
         elif system == "Windows":
             with zipfile.ZipFile(download) as archive:
                 for info in archive.infolist():
@@ -120,14 +117,14 @@ def install_vkquake() -> None:
                     if not info.filename.endswith(".pdb"):
                         archive.extract(info, INSTALL_SINGLE_PLAYER_DIR)
 
-            print(f"    ✔ Installed {INSTALL_SINGLE_PLAYER_DIR / 'vkQuake.exe'}")
-            print("    Run it from its folder; it uses the current directory as the game folder.")
+            installed = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.exe"
+            instructions = "    Run it from its folder; it uses the current directory as the game folder."
         else:
             # Fixed name, so the command to run it doesn't change with each version.
-            appimage = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.AppImage"
+            installed = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.AppImage"
             download.chmod(0o755)
-            os.replace(download, appimage)
+            os.replace(download, installed)
+            instructions = f'    Run it with:\n      "{installed}" -basedir "{INSTALL_SINGLE_PLAYER_DIR}"'
 
-            print(f"    ✔ Installed {appimage}")
-            print("    Run it with:")
-            print(f'      "{appimage}" -basedir "{INSTALL_SINGLE_PLAYER_DIR}"')
+        print(f"    ✔ Installed {installed}")
+        print(instructions)

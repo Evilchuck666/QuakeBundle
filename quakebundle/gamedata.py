@@ -57,24 +57,20 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
 
             if match := PROGRESS_RE.search(line):
 
-                downloaded, total = int(match[3]), int(match[4])
+                downloaded, total = int(match[3]), int(match[4]) or None
                 total_size = total or total_size
 
                 if progress_bar is None:
-
-                    state = match[1]
-                    progress_bar = byte_bar(total=total or None, desc=f"    {state}")
+                    progress_bar = byte_bar(total=total, desc=f"    {match[1]}")
 
                 # steamcmd goes through several states (preallocating,
                 # downloading, verifying...), each counting from zero.
-                elif match[1] != state or (total or None) != progress_bar.total:
-
-                    state = match[1]
-
+                elif match[1] != state or total != progress_bar.total:
                     # Before reset(), which redraws the bar.
-                    progress_bar.set_description_str(f"    {state}", refresh=False)
-                    progress_bar.reset(total=total or None)
+                    progress_bar.set_description_str(f"    {match[1]}", refresh=False)
+                    progress_bar.reset(total=total)
 
+                state = match[1]
                 progress_bar.update(downloaded - progress_bar.n)
             elif match := SUCCESS_RE.search(line):
 

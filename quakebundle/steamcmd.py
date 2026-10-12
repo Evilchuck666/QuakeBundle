@@ -35,12 +35,8 @@ ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 def steamcmd_executable() -> Path:
     """Return the platform-specific steamcmd executable path."""
-    system = platform.system()
-
-    if system == "Windows":
-        return STEAMCMD_DIR / "steamcmd.exe"
-
-    return STEAMCMD_DIR / "steamcmd.sh"
+    filename = "steamcmd.exe" if platform.system() == "Windows" else "steamcmd.sh"
+    return STEAMCMD_DIR / filename
 
 
 def install_steamcmd() -> Path:
@@ -119,13 +115,20 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
     if os.name == "posix":
         # steamcmd buffers its output when writing to a pipe, so progress
         # would only arrive at the end; a pseudo-terminal avoids that.
-        master, slave = pty.openpty()
+        master, output = pty.openpty()
+    else:
+        master, output = None, subprocess.PIPE
 
-        proc = subprocess.Popen(
-            command, cwd=STEAMCMD_DIR, stdin=subprocess.DEVNULL, stdout=slave, stderr=slave
-        )
+    proc = subprocess.Popen(
+        command,
+        cwd=STEAMCMD_DIR,
+        stdin=subprocess.DEVNULL,
+        stdout=output,
+        stderr=subprocess.STDOUT,
+    )
 
-        os.close(slave)
+    if master is not None:
+        os.close(output)
         pending = b""
 
         while True:
@@ -142,17 +145,11 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
         handle(pending)
         os.close(master)
     else:
-        proc = subprocess.Popen(
-            command,
-            cwd=STEAMCMD_DIR,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
         # Windows has no pseudo-terminals in the standard library, so progress
         # may arrive in bursts here.
-        for raw in proc.stdout:
-            handle(raw)
+        with proc.stdout:
+            for raw in proc.stdout:
+                handle(raw)
     return proc.wait(), list(tail)
 
 
@@ -191,7 +188,7 @@ def login(steamcmd: Path, username: str) -> None:
     result = subprocess.run(
         [str(steamcmd), "+login", username, "+quit"],
         check=False, cwd=STEAMCMD_DIR
-        )
+    )
 
     if result.returncode != 0:
         sys.exit(f"Could not log in to Steam as {username}")

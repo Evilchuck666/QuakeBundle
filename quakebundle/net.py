@@ -23,6 +23,7 @@ def curl_get(url: str):
     # SIM115 is intentionally ignored here: the temporary file must remain open for
     # the returned addinfourl object to stay usable after this function returns.
     response = tempfile.TemporaryFile()  # noqa: SIM115
+
     try:
         try:
             result = subprocess.run(
@@ -33,11 +34,14 @@ def curl_get(url: str):
             )
         except FileNotFoundError:
             sys.exit(f"Could not verify the certificate of {url}, and curl is not available")
+
         if result.returncode != 0:
             sys.exit(f"Could not download {url}: {result.stderr.decode(errors='replace').strip()}")
+
         headers = email.message.Message()
         headers["Content-Length"] = str(response.tell())
         response.seek(0)
+
         return urllib.response.addinfourl(response, headers, url, 200)
     except BaseException:
         response.close()
@@ -47,6 +51,7 @@ def curl_get(url: str):
 def open_url(url: str):
     """Open a URL, falling back to curl when the system certificate store is needed."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+
     try:
         return urllib.request.urlopen(request)
     except urllib.error.URLError as error:
@@ -57,12 +62,14 @@ def open_url(url: str):
                 # on demand. curl.exe (bundled since Windows 10) uses Windows'
                 # own TLS, so it works where Python fails.
                 return curl_get(url)
+
             if platform.system() == "Darwin":
                 # Python from python.org ships without CA certificates on macOS.
                 sys.exit(
                     f"Could not verify the certificate of {url}.\n"
                     'Run "Install Certificates.command" from your Python folder in Applications.'
                 )
+
         sys.exit(f"Could not download {url}: {error.reason}")
 
 
@@ -75,11 +82,14 @@ def fetch_json(url: str):
 def fetch(url: str, destination: Path) -> None:
     """Download a URL to disk using a fixed-size buffer."""
     downloaded = 0
+
     with open_url(url) as response, destination.open("wb") as output:
         total = int(response.headers.get("Content-Length", 0))
+
         with byte_bar(total=total or None, desc="    Downloading") as progress_bar:
             while chunk := response.read(DOWNLOAD_CHUNK_SIZE):
                 output.write(chunk)
                 downloaded += len(chunk)
                 progress_bar.update(len(chunk))
+
     print(f"    Downloaded {mb(downloaded)}")

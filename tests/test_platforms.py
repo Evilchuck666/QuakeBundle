@@ -149,6 +149,11 @@ class VkQuakeInstallTests(unittest.TestCase):
         if os.name != "nt":
             self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o755)
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
+        self.assertEqual(self.output.getvalue(),
+                         f"    vkQuake 1.32 ({asset['name']})\n"
+                         f"    ✔ Installed {destination}\n"
+                         "    Run it with:\n"
+                         f'      "{destination}" -basedir "{self.install_dir}"\n')
 
     def test_windows_zip_installs_game_files_without_debug_symbols(self):
         asset = release_asset("vkQuake-1.32_windows_x64.zip")
@@ -168,6 +173,10 @@ class VkQuakeInstallTests(unittest.TestCase):
         files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
                  for path in self.install_dir.rglob("*") if path.is_file()}
         self.assertEqual(files, {"vkQuake.exe": b"executable", "support/config.cfg": b"configuration"})
+        self.assertEqual(self.output.getvalue(),
+                         f"    vkQuake 1.32 ({asset['name']})\n"
+                         f"    ✔ Installed {self.install_dir / 'vkQuake.exe'}\n"
+                         "    Run it from its folder; it uses the current directory as the game folder.\n")
 
     def test_unsupported_platform_skips_installation(self):
         with mock.patch.object(vkquake, "vkquake_release", return_value=None):
@@ -229,6 +238,10 @@ class VkQuakeInstallTests(unittest.TestCase):
         self.assertFalse(mountpoint.parent.exists())
         self.assertFalse(image.parent.exists())
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
+        self.assertEqual(self.output.getvalue(),
+                         f"    vkQuake 1.32 ({asset['name']})\n"
+                         f"    ✔ Installed {destination}\n"
+                         "    Run it by opening vkQuake.app; it uses the folder it is in.\n")
 
     def test_mac_copy_failure_still_detaches_and_cleans_mount_directory(self):
         self.install_dir.mkdir(parents=True)

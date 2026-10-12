@@ -1,0 +1,76 @@
+"""Cover download progress with visible and disabled progress bars."""
+
+import contextlib
+import io
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from tqdm import tqdm
+
+from quakebundle import gamedata
+
+
+class DownloadProgressTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="quake data ")
+        self.addCleanup(temporary.cleanup)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", Path(temporary.name)))
+        self.output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+
+    def test_progress_starts_lazily_and_tracks_state_and_size_changes(self):
+        bars = []
+
+        def make_bar(**kwargs):
+            bar = tqdm(file=io.StringIO(), **kwargs)
+            self.addCleanup(bar.close)
+            bars.append(bar)
+            return bar
+
+        def run(command, on_line):
+            on_line("Logging in...")
+            self.assertEqual(bars, [])
+            for state, downloaded, total in (
+                ("preallocating", 10, 0),
+                ("preallocating", 20, 0),
+                ("downloading", 1, 1048576),
+                ("downloading", 4, 2097152),
+                ("verifying", 5, 2097152),
+            ):
+                on_line(
+                    f"Update state (0x61) {state}, progress: 0.00 ({downloaded} / {total})"
+                )
+                self.assertEqual(len(bars), 1)
+                self.assertEqual(bars[0].desc, f"    {state}")
+                self.assertEqual(bars[0].n, downloaded)
+                self.assertEqual(bars[0].total, total or None)
+            on_line("Success! App '2310' fully installed.")
+            on_line("Update state (0x61) downloading, progress: 0.00 (0 / 0)")
+            self.assertEqual(bars[0].desc, "    verifying")
+            return 0, []
+
+        with patch.object(gamedata, "byte_bar", side_effect=make_bar):
+            with patch.object(gamedata, "run_captured", side_effect=run):
+                gamedata.download_quake(Path("steamcmd"), "test-user", 1)
+        self.assertEqual(self.output.getvalue(), "    ✔ installed (2.0 MB)\n")
+
+    def test_redirected_output_handles_disabled_bars_and_keeps_last_known_size(self):
+        def run(command, on_line):
+            for line in (
+                "Update state (0x61) downloading, progress: 0.00 (0 / 1048576)",
+                "Update state (0x81) verifying, progress: 0.00 (0 / 0)",
+                "Success! App '2310' already up to date.",
+            ):
+                on_line(line)
+            return 0, []
+
+        with patch.object(gamedata, "run_captured", side_effect=run):
+            gamedata.download_quake(Path("steamcmd"), "test-user", 1)
+        self.assertEqual(self.output.getvalue(), "    ✔ up to date (1.0 MB)\n")
+
+
+if __name__ == "__main__":
+    unittest.main()
