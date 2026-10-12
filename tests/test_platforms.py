@@ -95,12 +95,28 @@ class VkQuakeReleaseTests(unittest.TestCase):
         for machine, separator in [("x86_64", "-"), ("arm64", "_")]:
             pages = [
                 [
-                    {"tag_name": "vkQuake-9.0", "published_at": "2024-01-01T00:00:00Z", "assets": [older_asset]},
-                    {"tag_name": "OtherGame-10", "published_at": "2026-01-01T00:00:00Z", "assets": [older_asset]},
+                    {
+                        "tag_name": "vkQuake-9.0",
+                        "published_at": "2024-01-01T00:00:00Z",
+                        "assets": [older_asset]
+                    },
+                    {
+                        "tag_name": "OtherGame-10",
+                        "published_at": "2026-01-01T00:00:00Z",
+                        "assets": [older_asset]
+                    },
                 ],
                 [
-                    {"tag_name": "vkQuake-3.0", "published_at": "2026-01-01T00:00:00Z", "assets": []},
-                    {"tag_name": "vkQuake" + separator + "2.0", "published_at": "2025-01-01T00:00:00Z", "assets": [release_asset("source.zip"), newest_asset]},
+                    {
+                        "tag_name": "vkQuake-3.0",
+                        "published_at": "2026-01-01T00:00:00Z",
+                        "assets": []
+                    },
+                    {
+                        "tag_name": "vkQuake" + separator + "2.0",
+                        "published_at": "2025-01-01T00:00:00Z",
+                        "assets": [release_asset("source.zip"), newest_asset]
+                    },
                 ],
                 [],
             ]
