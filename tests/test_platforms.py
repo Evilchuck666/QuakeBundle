@@ -159,16 +159,23 @@ class VkQuakeInstallTests(unittest.TestCase):
             path.write_bytes(b"new appimage")
 
         original_chmod = Path.chmod
-        with mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)):
-            with mock.patch.object(vkquake.platform, "system", return_value="Linux"):
-                with mock.patch.object(vkquake, "fetch", side_effect=download):
-                    with mock.patch.object(Path, "chmod", autospec=True, side_effect=original_chmod) as chmod:
-                        vkquake.install_vkquake()
-                        chmod.assert_called_once_with(download_paths[0], 0o755)
+
+        with (
+            mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
+            mock.patch.object(vkquake.platform, "system", return_value="Linux"),
+            mock.patch.object(vkquake, "fetch", side_effect=download),
+            mock.patch.object(Path, "chmod", autospec=True, side_effect=original_chmod) as chmod,
+        ):
+            vkquake.install_vkquake()
+            chmod.assert_called_once_with(download_paths[0], 0o755)
+
         self.assertEqual(destination.read_bytes(), b"new appimage")
+
         if os.name != "nt":
             self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o755)
+
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
+
         self.assertEqual(self.output.getvalue(),
                          f"    vkQuake 1.32 ({asset['name']})\n"
                          f"    ✔ Installed {destination}\n"
