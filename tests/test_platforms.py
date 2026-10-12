@@ -233,7 +233,7 @@ class VkQuakeInstallTests(unittest.TestCase):
         destination = self.install_dir / "vkQuake.AppImage"
         destination.write_bytes(b"working version")
 
-        def fail_download(url, path):
+        def fail_download(_url, path):
             path.write_bytes(b"incomplete")
             raise OSError("download interrupted")
 
