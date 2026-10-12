@@ -104,15 +104,20 @@ class VkQuakeReleaseTests(unittest.TestCase):
                 ],
                 [],
             ]
-            with self.subTest(machine=machine, separator=separator):
-                with mock.patch.object(vkquake.platform, "system", return_value="Darwin"):
-                    with mock.patch.object(vkquake.platform, "machine", return_value=machine):
-                        with mock.patch.object(vkquake, "fetch_json", side_effect=pages) as fetch:
-                            self.assertEqual(vkquake.vkquake_release(), ("2.0", newest_asset))
-                            self.assertEqual(fetch.call_args_list, [
-                                mock.call(config.VKQUAKE_MAC_RELEASES_URL + "?per_page=100&page=" + str(page))
-                                for page in (1, 2, 3)
-                            ])
+
+            with (
+                self.subTest(machine=machine, separator=separator),
+                mock.patch.object(vkquake.platform, "system", return_value="Darwin"),
+                mock.patch.object(vkquake.platform, "machine", return_value=machine),
+                mock.patch.object(vkquake, "fetch_json", side_effect=pages) as fetch,
+            ):
+                self.assertEqual(vkquake.vkquake_release(), ("2.0", newest_asset))
+                self.assertEqual(fetch.call_args_list, [
+                    mock.call(
+                        config.VKQUAKE_MAC_RELEASES_URL + "?per_page=100&page=" + str(page)
+                    )
+                    for page in (1, 2, 3)
+                ])
 
     def test_mac_missing_dmg_reports_an_error(self):
         """Ensure a missing Mac .dmg raises a clear install error."""
