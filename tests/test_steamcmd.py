@@ -49,7 +49,7 @@ class SteamcmdInstallationTests(unittest.TestCase):
                 filename = "steamcmd.exe" if system == "Windows" else "steamcmd.sh"
                 archive, payload = steamcmd_archive(system, filename)
 
-                def download(_url, destination):
+                def download(_url, destination, archive=archive):
                     destination.write_bytes(archive)
 
                 with patch.object(steamcmd, "STEAMCMD_DIR", directory), \
