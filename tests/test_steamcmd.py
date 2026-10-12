@@ -81,12 +81,21 @@ class SteamcmdInstallationTests(unittest.TestCase):
         for system in ("Linux", "Darwin", "Windows"):
             with self.subTest(system=system):
                 archive, _ = steamcmd_archive(system, "README.txt")
-                with patch.object(steamcmd, "STEAMCMD_DIR", self.root / system), \
-                     patch.object(steamcmd.platform, "system", return_value=system), \
-                     patch.object(steamcmd, "fetch", side_effect=lambda _url, path: path.write_bytes(archive)), \
-                     redirect_stdout(io.StringIO()):
-                    with self.assertRaisesRegex(SystemExit, "not found after extracting steamcmd"):
-                        steamcmd.install_steamcmd()
+                with (
+                    patch.object(steamcmd, "STEAMCMD_DIR", self.root / system),
+                    patch.object(steamcmd.platform, "system", return_value=system),
+                    patch.object(
+                        steamcmd,
+                        "fetch",
+                        side_effect=lambda _url, path, archive=archive: path.write_bytes(archive),
+                    ),
+                    redirect_stdout(io.StringIO()),
+                    self.assertRaisesRegex(
+                        SystemExit,
+                        "not found after extracting steamcmd",
+                    ),
+                ):
+                    steamcmd.install_steamcmd()
 
 
 class RosettaTests(unittest.TestCase):
