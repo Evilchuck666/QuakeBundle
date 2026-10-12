@@ -187,10 +187,13 @@ class VkQuakeInstallTests(unittest.TestCase):
                 archive.writestr("support/config.cfg", b"configuration")
                 archive.writestr("support/library.pdb", b"more symbols")
 
-        with mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)):
-            with mock.patch.object(vkquake.platform, "system", return_value="Windows"):
-                with mock.patch.object(vkquake, "fetch", side_effect=download):
-                    vkquake.install_vkquake()
+        with (
+            mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
+            mock.patch.object(vkquake.platform, "system", return_value="Windows"),
+            mock.patch.object(vkquake, "fetch", side_effect=download),
+        ):
+            vkquake.install_vkquake()
+
         files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
                  for path in self.install_dir.rglob("*") if path.is_file()}
 
