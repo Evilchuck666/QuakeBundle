@@ -37,13 +37,11 @@ class UserDataDirectoryTests(unittest.TestCase):
             ("Linux", {"XDG_DATA_HOME": str(custom)}, custom),
         ]
         for system, environment, expected in cases:
-            with (
-                self.subTest(system=system, environment=environment),
-                mock.patch.object(config.platform, "system", return_value=system),
-                mock.patch.dict(os.environ, environment, clear=True),
-                mock.patch.object(config.Path, "home", return_value=home),
-            ):
-                self.assertEqual(config.user_data_dir(), expected)
+            with self.subTest(system=system, environment=environment):
+                with mock.patch.object(config.platform, "system", return_value=system):
+                    with mock.patch.dict(os.environ, environment, clear=True):
+                        with mock.patch.object(config.Path, "home", return_value=home):
+                            self.assertEqual(config.user_data_dir(), expected)
 
 
 class VkQuakeReleaseTests(unittest.TestCase):
