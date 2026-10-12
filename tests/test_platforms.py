@@ -139,10 +139,9 @@ class VkQuakeInstallTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.output = io.StringIO()
 
-        redirect = contextlib.redirect_stdout(self.output)
-        redirect.__enter__()
-        
-        self.addCleanup(redirect.__exit__, None, None, None)
+        self._stdout_redirect = contextlib.ExitStack()
+        self._stdout_redirect.enter_context(contextlib.redirect_stdout(self.output))
+        self.addCleanup(self._stdout_redirect.close)
 
     def test_appimage_replaces_previous_version_and_is_executable(self):
         """Verify AppImage updates replace the prior binary and keep it executable."""
