@@ -12,8 +12,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from http.client import IncompleteRead
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError, URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "assets" / "scripts" / "vkQuake"
@@ -32,21 +34,25 @@ class WizardTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.config = self.root / "id1" / "configs" / "player.cfg"
-        self.config.parent.mkdir(parents=True)
-        shutil.copyfile(CONFIGS / "player.cfg", self.config)
+        shutil.copytree(CONFIGS, self.config.parent)
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
         self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+        self.stderr = self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
         self.get_player_cfg_path = wizard.get_player_cfg_path
         self.stack.enter_context(
             patch.object(wizard, "get_player_cfg_path", return_value=self.config)
         )
+        self.download = self.stack.enter_context(patch.object(
+            wizard, "urlopen", side_effect=lambda url, timeout: io.BytesIO(
+                (CONFIGS / url.rsplit("/", 1)[-1]).read_bytes()
+            )
+        ))
 
-    def run_wizard(self, answers):
+    def run_wizard(self, answers, *args):
         """Run the wizard with scripted answers to its prompts."""
         with patch("builtins.input", side_effect=answers):
-            return wizard.main()
+            return wizard.main(list(args))
 
     def settings(self):
         """Read active player settings from the temporary config."""
@@ -90,12 +96,163 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(self.config.read_bytes(), before)
         self.assertFalse(wizard.get_setup_marker_path(self.config).exists())
 
-    def test_missing_template_fails_before_prompting(self):
-        """Fail before requesting input when the config template is missing."""
-        self.config.unlink()
+    def test_deleted_directory_recovers_before_player_prompts(self):
+        """Recreate the directory without a reset question, then configure it."""
+        shutil.rmtree(self.config.parent)
+
+        def answer(prompt):
+            self.assertTrue(all((self.config.parent / name).is_file()
+                                for name in wizard.CONFIG_FILES))
+            self.assertNotIn("Reset", prompt)
+            return ""
+
+        with patch("builtins.input", side_effect=answer) as prompt:
+            self.assertEqual(wizard.main(["--auto"]), 0)
+        self.assertEqual(prompt.call_count, 2)
+        self.assertEqual(self.download.call_count, 3)
+        for call, name in zip(self.download.call_args_list, wizard.CONFIG_FILES):
+            self.assertEqual(call.args, (wizard.CONFIG_BASE_URL + name,))
+            self.assertEqual(call.kwargs, {"timeout": 30})
+        self.assertTrue(wizard.get_setup_marker_path(self.config).is_file())
+
+    def test_missing_files_preserve_custom_configs_by_default(self):
+        """Recover one or several non-player files without repeating player setup."""
+        self.config.write_text('name "Custom"\nsensitivity "7"\n')
+        wizard.mark_setup_complete(self.config)
+        before = self.config.read_bytes()
+        for names in [("autoexec.cfg",), ("game.cfg",), ("autoexec.cfg", "game.cfg")]:
+            for answer in ("", "n"):
+                with self.subTest(names=names, answer=answer):
+                    untouched = {name: (self.config.parent / name).read_bytes()
+                                 for name in wizard.CONFIG_FILES if name not in names}
+                    for name in names:
+                        (self.config.parent / name).unlink()
+                    self.download.reset_mock()
+                    self.assertEqual(self.run_wizard([answer], "--auto"), 0)
+                    self.assertEqual(self.download.call_count, len(names))
+                    self.assertEqual(self.config.read_bytes(), before)
+                    for name, content in untouched.items():
+                        self.assertEqual((self.config.parent / name).read_bytes(), content)
+
+    def test_missing_player_or_all_files_requires_player_setup(self):
+        """A stale marker never skips settings for a recovered player.cfg."""
+        for names in [("player.cfg",), wizard.CONFIG_FILES]:
+            with self.subTest(names=names):
+                wizard.mark_setup_complete(self.config)
+                for name in names:
+                    (self.config.parent / name).unlink()
+                self.download.reset_mock()
+                self.assertEqual(self.run_wizard(["n", "Ranger", "2.5"], "--auto"), 0)
+                self.assertEqual(self.download.call_count, len(names))
+                self.assertEqual(self.settings()["name"], '"Ranger"')
+                self.assertTrue(wizard.get_setup_marker_path(self.config).is_file())
+
+    def test_reset_replaces_three_configs_and_keeps_other_files(self):
+        """Only an explicit yes replaces existing configs and repeats setup."""
+        wizard.mark_setup_complete(self.config)
+        self.config.write_text('name "Custom"\nfov "105"\n')
+        (self.config.parent / "autoexec.cfg").write_text("custom autoexec\n")
+        extra = self.config.parent / "custom.cfg"
+        extra.write_text("keep me\n")
+        (self.config.parent / "game.cfg").unlink()
+        self.assertEqual(self.run_wizard(["invalid", "y", "Ranger", "3"], "--auto"), 0)
+        self.assertEqual(self.download.call_count, 3)
+        for name in ("autoexec.cfg", "game.cfg"):
+            self.assertEqual(
+                (self.config.parent / name).read_bytes(),
+                (CONFIGS / name).read_bytes()
+            )
+
+        self.assertNotIn('fov "105"', self.config.read_text())
+        self.assertEqual(extra.read_text(), "keep me\n")
+
+    def test_complete_installation_needs_no_network_or_input(self):
+        """Checking and automatic startup are silent when already configured."""
+        wizard.mark_setup_complete(self.config)
         with patch("builtins.input") as prompt:
-            self.assertEqual(wizard.main(), 1)
+            self.assertEqual(wizard.main(["--check"]), 0)
+            self.assertEqual(wizard.main(["--auto"]), 0)
         prompt.assert_not_called()
+        self.download.assert_not_called()
+
+    def test_check_reports_setup_without_mutating_or_prompting(self):
+        """Check mode detects missing markers, files and directories read-only."""
+        with patch("builtins.input") as prompt:
+            self.assertEqual(wizard.main(["--check"]), 2)
+            wizard.mark_setup_complete(self.config)
+            self.config.unlink()
+            self.assertEqual(wizard.main(["--check"]), 2)
+            self.assertFalse(self.config.exists())
+            shutil.rmtree(self.config.parent)
+            self.assertEqual(wizard.main(["--check"]), 2)
+            self.assertFalse(self.config.parent.exists())
+        prompt.assert_not_called()
+        self.download.assert_not_called()
+
+    def test_invalid_paths_fail_before_prompting(self):
+        """Reject a file at configs/ or a directory at a required file path."""
+        self.config.unlink()
+        self.config.mkdir()
+        with patch("builtins.input") as prompt:
+            self.assertEqual(wizard.main([]), 1)
+            shutil.rmtree(self.config.parent)
+            self.config.parent.write_text("not a directory")
+            self.assertEqual(wizard.main([]), 1)
+        prompt.assert_not_called()
+        self.download.assert_not_called()
+
+    def test_inspection_permission_failure_precedes_prompts(self):
+        """Report inaccessible paths before any recovery question."""
+        with patch.object(Path, "stat", side_effect=PermissionError("denied")), \
+                patch("builtins.input") as prompt:
+            self.assertEqual(wizard.main([]), 1)
+        prompt.assert_not_called()
+        self.download.assert_not_called()
+
+    def test_failed_reset_downloads_preserve_existing_files_and_marker(self):
+        """Stage everything before replacement, including on invalid responses."""
+        wizard.mark_setup_complete(self.config)
+        (self.config.parent / "game.cfg").unlink()
+        before = {path.name: path.read_bytes() for path in self.config.parent.iterdir()}
+        failures = [URLError("offline"), TimeoutError("timeout"), IncompleteRead(b"partial", 10),
+                    HTTPError(wizard.CONFIG_BASE_URL, 404, "Not found", {}, None),
+                    b" \n", b"\xff"]
+        for failure in failures:
+            with self.subTest(failure=failure):
+                second = io.BytesIO(failure) if isinstance(failure, bytes) else failure
+                self.download.side_effect = [io.BytesIO(b"valid first download\n"), second]
+                self.assertEqual(self.run_wizard(["y"], "--auto"), 1)
+                after = {path.name: path.read_bytes() for path in self.config.parent.iterdir()}
+                self.assertEqual(after, before)
+
+    def test_failed_replacement_cleans_downloads_and_invalidates_marker(self):
+        """A write failure cannot leave a reset marked as complete."""
+        wizard.mark_setup_complete(self.config)
+        (self.config.parent / "game.cfg").unlink()
+        before = self.config.read_bytes()
+        with patch.object(Path, "replace", side_effect=PermissionError("denied")):
+            self.assertEqual(self.run_wizard(["y"], "--auto"), 1)
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertFalse(wizard.get_setup_marker_path(self.config).exists())
+        self.assertEqual(list(self.config.parent.glob(".wizard-download-*")), [])
+
+    def test_cancel_reset_does_not_download(self):
+        """Cancelling the reset question leaves the surviving files untouched."""
+        (self.config.parent / "game.cfg").unlink()
+        before = self.config.read_bytes()
+        self.assertEqual(self.run_wizard([KeyboardInterrupt()], "--auto"), 1)
+        self.assertEqual(self.config.read_bytes(), before)
+        self.download.assert_not_called()
+
+    def test_cancel_after_recovery_keeps_files_but_requires_setup(self):
+        """Retain recovered defaults and retry personal setup on the next launch."""
+        wizard.mark_setup_complete(self.config)
+        self.config.unlink()
+        self.assertEqual(self.run_wizard(["n", EOFError()], "--auto"), 1)
+        self.assertEqual(self.config.read_bytes(), (CONFIGS / "player.cfg").read_bytes())
+        self.assertFalse(wizard.get_setup_marker_path(self.config).exists())
+        self.assertIn("already recovered remain", self.stderr.getvalue())
+        self.assertEqual(self.run_wizard(["Ranger", "3"], "--auto"), 0)
 
     def test_failed_save_preserves_existing_config(self):
         """Preserve the config and remove temporary files after a failed save."""
@@ -118,7 +275,7 @@ class LauncherTests(unittest.TestCase):
     """Verify Linux launcher setup, argument handling, and failure paths."""
 
     def setUp(self):
-        """Create an isolated installation with stub wizard and engine scripts."""
+        """Create an installation with the real wizard and offline downloads."""
         temporary = tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -131,6 +288,8 @@ class LauncherTests(unittest.TestCase):
         (self.bin / "python3").symlink_to(sys.executable)
         self.env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                         DISPLAY="", PYTHONDONTWRITEBYTECODE="1")
+        shutil.copyfile(SCRIPTS / "wizard.py", self.root / "setup.py")
+        shutil.copytree(CONFIGS, self.root / "templates")
         self.write_wizard(0)
         engine = self.root / "vkQuake.AppImage"
         engine.write_text('#!/usr/bin/env python3\nimport json, sys\n'
@@ -139,19 +298,24 @@ class LauncherTests(unittest.TestCase):
         engine.chmod(0o755)
 
     def write_wizard(self, status):
-        """Write a wizard stub that records runs and exits with the given status."""
+        """Run the actual wizard with local downloads and optional setup failure."""
         (self.root / "wizard.py").write_text(
-            'from pathlib import Path\nimport sys\n'
+            'from pathlib import Path\nimport io, runpy, sys\n'
             'root = Path(__file__).resolve().parent\n'
-            'with (root / "wizard-runs").open("a") as log: log.write("run\\n")\n'
-            + ('(root / "id1/configs/.wizard-complete").touch()\n' if status == 0 else '')
-            + f'sys.exit({status})\n'
+            'scope = runpy.run_path(str(root / "setup.py"))\n'
+            'main = scope["main"]\n'
+            'main.__globals__["urlopen"] = lambda url, timeout: '
+            'io.BytesIO((root / "templates" / url.rsplit("/", 1)[-1]).read_bytes())\n'
+            'if "--check" not in sys.argv:\n'
+            '    with (root / "wizard-runs").open("a") as log: log.write("run\\n")\n'
+            + (f'    sys.exit({status})\n' if status else '')
+            + 'sys.exit(main())\n'
         )
 
-    def launch(self, *args):
+    def launch(self, *args, answers="\n\n"):
         """Run the launcher from another directory and capture its output."""
         return subprocess.run(["bash", str(self.root / "vkQuake.sh"), *args],
-                              cwd=self.bin, env=self.env, input="", text=True,
+                              cwd=self.bin, env=self.env, input=answers, text=True,
                               capture_output=True, timeout=15, check=False)
 
     def test_first_run_repeat_forced_setup_and_argument_forwarding(self):
@@ -190,12 +354,55 @@ class LauncherTests(unittest.TestCase):
         self.write_wizard(1)
         self.assertEqual(self.launch("--wizard").returncode, 1)
 
-    def test_missing_config_stops_launch(self):
-        """Report missing configuration without starting the engine."""
+    def test_missing_config_is_recovered_even_with_marker(self):
+        """Recover a missing game config without repeating personal setup."""
+        self.marker.touch()
+        before = (self.configs / "player.cfg").read_bytes()
         (self.configs / "game.cfg").unlink()
+        result = self.launch(answers="n\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        self.assertEqual(
+            (self.configs / "game.cfg").read_bytes(),
+            (CONFIGS / "game.cfg").read_bytes()
+        )
+
+        self.assertEqual((self.configs / "player.cfg").read_bytes(), before)
+        self.assertTrue((self.root / "engine.json").exists())
+
+    def test_deleted_config_directory_is_recovered(self):
+        """Rebuild a deleted configs directory before launching the engine."""
+        shutil.rmtree(self.configs)
+        result = self.launch()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.marker.is_file())
+        self.assertTrue((self.root / "engine.json").exists())
+
+    def test_recovery_download_failure_stops_launch(self):
+        """Do not start the engine when a required download fails."""
+        shutil.rmtree(self.configs)
+        (self.root / "templates" / "game.cfg").unlink()
         result = self.launch()
         self.assertEqual(result.returncode, 1)
-        self.assertIn("Missing configuration", result.stderr)
+        self.assertIn("Could not download game.cfg", result.stderr)
+        self.assertFalse((self.root / "engine.json").exists())
+
+    def test_check_error_stops_launch_without_running_setup(self):
+        """A validation error is not mistaken for the needs-setup exit code."""
+        shutil.rmtree(self.configs)
+        self.configs.write_text("not a directory")
+        result = self.launch()
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((self.root / "wizard-runs").exists())
+        self.assertFalse((self.root / "engine.json").exists())
+
+    def test_cancelled_recovery_stops_launch(self):
+        """EOF at the reset question aborts startup without downloading."""
+        self.marker.touch()
+        (self.configs / "game.cfg").unlink()
+        result = self.launch(answers="")
+        self.assertEqual(result.returncode, 1)
+        self.assertFalse((self.configs / "game.cfg").exists())
         self.assertFalse((self.root / "engine.json").exists())
 
     def test_help_does_not_start_wizard_or_engine(self):
