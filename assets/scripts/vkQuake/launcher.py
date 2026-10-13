@@ -425,13 +425,11 @@ Use -- to pass all remaining arguments directly to vkQuake.""")
 
     try:
         status = setup_main(["--check"])
-        if status not in (0, NEEDS_SETUP):
-            return status if status >= 0 else 128 - status
-
-        if status == NEEDS_SETUP or run_wizard:
+        if status == NEEDS_SETUP or (status == 0 and run_wizard):
             status = run_setup_wizard(automatic=not run_wizard)
-            if status != 0:
-                return status if status >= 0 else 128 - status
+
+        if status != 0:
+            return status if status >= 0 else 128 - status
 
         prepare_shared_autoexec(root)
 
