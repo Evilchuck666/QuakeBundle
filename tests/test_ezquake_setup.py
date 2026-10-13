@@ -1,4 +1,4 @@
-"""Offline regression checks for the ezQuake wizard and Linux launcher."""
+"""Offline regression checks for the standalone ezQuake Linux launcher."""
 
 from __future__ import annotations
 
@@ -20,9 +20,9 @@ from urllib.error import URLError
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "assets" / "scripts" / "ezQuake"
 CONFIGS = ROOT / "assets" / "cfg" / "ezquake"
-SPEC = importlib.util.spec_from_file_location("ezquake_wizard", SCRIPTS / "wizard.py")
-wizard = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(wizard)
+SPEC = importlib.util.spec_from_file_location("ezquake_launcher", SCRIPTS / "launcher.py")
+launcher = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(launcher)
 
 
 class WizardTests(unittest.TestCase):
@@ -32,7 +32,7 @@ class WizardTests(unittest.TestCase):
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         self.root = Path(stack.enter_context(tempfile.TemporaryDirectory()))
-        stack.enter_context(patch.object(wizard, "__file__", str(self.root / "wizard.py")))
+        stack.enter_context(patch.object(launcher, "__file__", str(self.root / "launcher.py")))
         self.configs = self.root / "ezquake" / "configs"
         shutil.copytree(CONFIGS, self.configs)
         self.player = self.configs / "player.cfg"
@@ -40,7 +40,7 @@ class WizardTests(unittest.TestCase):
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
         self.download = stack.enter_context(patch.object(
-            wizard, "urlopen", side_effect=lambda url, timeout: io.BytesIO(
+            launcher, "urlopen", side_effect=lambda url, timeout: io.BytesIO(
                 (CONFIGS / url.rsplit("/", 1)[-1]).read_bytes()
             )
         ))
@@ -55,19 +55,19 @@ class WizardTests(unittest.TestCase):
         (self.configs / "config.cfg").touch()
         before = self.player.read_bytes()
         with patch("builtins.input") as prompt:
-            self.assertEqual(wizard.main(["--check"]), 2)
+            self.assertEqual(launcher.setup_main(["--check"]), 2)
             self.assertFalse(self.marker.exists())
-            wizard.mark_setup_complete(self.player)
-            self.assertEqual(wizard.main(["--check"]), 0)
-            for name in wizard.CONFIG_FILES:
+            launcher.mark_setup_complete(self.player)
+            self.assertEqual(launcher.setup_main(["--check"]), 0)
+            for name in launcher.CONFIG_FILES:
                 with self.subTest(name=name):
                     (self.configs / name).unlink()
-                    self.assertEqual(wizard.main(["--check"]), 2)
+                    self.assertEqual(launcher.setup_main(["--check"]), 2)
                     self.assertFalse((self.configs / name).exists())
                     shutil.copyfile(CONFIGS / name, self.configs / name)
             self.assertEqual(self.player.read_bytes(), before)
             shutil.rmtree(self.configs)
-            self.assertEqual(wizard.main(["--check"]), 2)
+            self.assertEqual(launcher.setup_main(["--check"]), 2)
             self.assertFalse(self.configs.exists())
         prompt.assert_not_called()
         self.download.assert_not_called()
@@ -75,7 +75,7 @@ class WizardTests(unittest.TestCase):
     def test_auto_sets_player_settings_once_and_forced_setup_updates_them(self):
         """Record completion without depending on the engine's config.cfg."""
         with patch("builtins.input", side_effect=["Ranger", "Rng", "Red", "2.5"]):
-            self.assertEqual(wizard.main(["--auto"]), 0)
+            self.assertEqual(launcher.setup_main(["--auto"]), 0)
         self.assertTrue(self.marker.is_file())
         self.assertFalse((self.configs / "config.cfg").exists())
         before = self.player.read_bytes()
@@ -84,11 +84,11 @@ class WizardTests(unittest.TestCase):
             "hostname": '"Ranger SV"', "sensitivity": '"2.5"',
         })
         with patch("builtins.input") as prompt:
-            self.assertEqual(wizard.main(["--auto"]), 0)
+            self.assertEqual(launcher.setup_main(["--auto"]), 0)
         prompt.assert_not_called()
         self.assertEqual(self.player.read_bytes(), before)
         with patch("builtins.input", side_effect=["Knight", "Knt", "Blue", "4"]):
-            self.assertEqual(wizard.main([]), 0)
+            self.assertEqual(launcher.setup_main([]), 0)
         self.assertEqual(self.settings(), {
             "name": '"Knight"', "cl_fakename": '"Knt"', "team": '"Blue"',
             "hostname": '"Knight SV"', "sensitivity": '"4.0"',
@@ -100,7 +100,7 @@ class WizardTests(unittest.TestCase):
         for answer, name in (("", "Player"), ("  Ranger  ", "Ranger")):
             with self.subTest(name=name):
                 with patch("builtins.input", side_effect=[answer, "", "Red", ""]):
-                    self.assertEqual(wizard.main([]), 0)
+                    self.assertEqual(launcher.setup_main([]), 0)
                 self.assertEqual(self.settings(), {
                     "name": f'"{name}"', "cl_fakename": f'"{name}"', "team": '"Red"',
                     "hostname": f'"{name} SV"', "sensitivity": '"3.0"',
@@ -114,18 +114,18 @@ class WizardTests(unittest.TestCase):
             'bad"team', "bad\nteam", "bad\rteam", "", "   ", "  Red  ", "3",
         ]
         with patch("builtins.input", side_effect=answers):
-            self.assertEqual(wizard.main([]), 0)
+            self.assertEqual(launcher.setup_main([]), 0)
         self.assertEqual(self.settings(), {
             "name": '"Ranger"', "cl_fakename": '"Rng"', "team": '"Red"',
             "hostname": '"Ranger SV"', "sensitivity": '"3.0"',
         })
 
     def test_sensitivity_reprompts_for_invalid_or_nonfinite_numbers(self):
-        """Only save a positive, finite sensitivity, as in the vkQuake wizard."""
+        """Only save a positive, finite sensitivity, as in the vkQuake launcher."""
         answers = ["Ranger", "Rng", "Red", "abc", "nan", "inf", "-inf", "1e309",
                    "0", "-2", "2.5"]
         with patch("builtins.input", side_effect=answers) as prompt:
-            self.assertEqual(wizard.main([]), 0)
+            self.assertEqual(launcher.setup_main([]), 0)
         self.assertEqual(prompt.call_count, len(answers))
         self.assertEqual(self.settings()["sensitivity"], '"2.5"')
 
@@ -138,7 +138,7 @@ class WizardTests(unittest.TestCase):
         )
         answers = ["new//name", "new//short", "new//team", "3"]
         with patch("builtins.input", side_effect=answers):
-            self.assertEqual(wizard.main([]), 0)
+            self.assertEqual(launcher.setup_main([]), 0)
         text = self.player.read_text()
         for line in ('// player settings\n', '"new//name" // full name\n',
                      '"new//short" // short name\n', '"new//team" // team name\n',
@@ -147,7 +147,7 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(self.settings()["hostname"], '"new//name SV"')
         self.assertEqual(self.settings()["sensitivity"], '"3.0"')
         with patch("builtins.input", side_effect=answers):
-            self.assertEqual(wizard.main([]), 0)
+            self.assertEqual(launcher.setup_main([]), 0)
         self.assertEqual(self.player.read_text(), text)
 
     def test_cancellation_at_any_player_prompt_preserves_config(self):
@@ -158,7 +158,7 @@ class WizardTests(unittest.TestCase):
             for error in (EOFError(), KeyboardInterrupt()):
                 with self.subTest(prompt=index, error=type(error).__name__):
                     with patch("builtins.input", side_effect=answers[:index] + [error]):
-                        self.assertEqual(wizard.main([]), 1)
+                        self.assertEqual(launcher.setup_main([]), 1)
                     self.assertEqual(self.player.read_bytes(), before)
                     self.assertFalse(self.marker.exists())
 
@@ -169,41 +169,41 @@ class WizardTests(unittest.TestCase):
 
         def answer(prompt):
             self.assertNotIn("Reset", prompt)
-            self.assertTrue(all((self.configs / name).is_file() for name in wizard.CONFIG_FILES))
+            self.assertTrue(all((self.configs / name).is_file() for name in launcher.CONFIG_FILES))
             return next(answers)
 
         with patch("builtins.input", side_effect=answer) as prompt:
-            self.assertEqual(wizard.main(["--auto"]), 0)
+            self.assertEqual(launcher.setup_main(["--auto"]), 0)
         self.assertEqual(prompt.call_count, 4)
         self.assertEqual(self.settings()["team"], '"Red"')
         self.assertTrue(self.marker.is_file())
         self.assertEqual(self.download.call_count, 3)
-        for call, name in zip(self.download.call_args_list, wizard.CONFIG_FILES):
-            self.assertEqual(call.args, (wizard.CONFIG_BASE_URL + name,))
+        for call, name in zip(self.download.call_args_list, launcher.CONFIG_FILES):
+            self.assertEqual(call.args, (launcher.CONFIG_BASE_URL + name,))
             self.assertEqual(call.kwargs, {"timeout": 30})
-        self.assertTrue(wizard.CONFIG_BASE_URL.endswith("/assets/cfg/ezquake/"))
+        self.assertTrue(launcher.CONFIG_BASE_URL.endswith("/assets/cfg/ezquake/"))
 
     def test_missing_game_config_preserves_player_and_other_user_files_by_default(self):
         """Default recovery downloads only missing files and keeps personal setup."""
         self.player.write_text('name "Custom"\nteam "Custom Team"\nsensitivity "7"\n')
         (self.configs / "config.cfg").write_text("engine settings\n")
         (self.configs / "extra.cfg").write_text("custom settings\n")
-        wizard.mark_setup_complete(self.player)
+        launcher.mark_setup_complete(self.player)
         before = {path.name: path.read_bytes() for path in self.configs.iterdir()}
         (self.configs / "game.cfg").unlink()
         with patch("builtins.input", side_effect=[""]):
-            self.assertEqual(wizard.main(["--auto"]), 0)
-        self.download.assert_called_once_with(wizard.CONFIG_BASE_URL + "game.cfg", timeout=30)
+            self.assertEqual(launcher.setup_main(["--auto"]), 0)
+        self.download.assert_called_once_with(launcher.CONFIG_BASE_URL + "game.cfg", timeout=30)
         self.assertEqual({path.name: path.read_bytes() for path in self.configs.iterdir()}, before)
 
     def test_reset_replaces_defaults_and_only_marks_complete_after_player_setup(self):
         """An explicit reset restores all three templates and reapplies settings."""
         self.player.write_text('name "Custom"\nfov "105"\n')
         (self.configs / "extra.cfg").write_text("keep me\n")
-        wizard.mark_setup_complete(self.player)
+        launcher.mark_setup_complete(self.player)
         (self.configs / "game.cfg").unlink()
         with patch("builtins.input", side_effect=["invalid", "y", "Ranger", "Rng", "Red", "3"]):
-            self.assertEqual(wizard.main(["--auto"]), 0)
+            self.assertEqual(launcher.setup_main(["--auto"]), 0)
         self.assertEqual(self.download.call_count, 3)
         self.assertNotIn("fov", self.player.read_text())
         self.assertIn('"Red"', self.player.read_text())
@@ -212,17 +212,17 @@ class WizardTests(unittest.TestCase):
 
     def test_cancel_after_player_recovery_requires_setup_on_next_run(self):
         """A restored default player config cannot retain an old completion marker."""
-        wizard.mark_setup_complete(self.player)
+        launcher.mark_setup_complete(self.player)
         self.player.unlink()
         with patch("builtins.input", side_effect=["n", EOFError()]):
-            self.assertEqual(wizard.main(["--auto"]), 1)
+            self.assertEqual(launcher.setup_main(["--auto"]), 1)
         self.assertEqual(self.player.read_bytes(), (CONFIGS / "player.cfg").read_bytes())
         self.assertFalse(self.marker.exists())
-        self.assertEqual(wizard.main(["--check"]), 2)
+        self.assertEqual(launcher.setup_main(["--check"]), 2)
 
     def test_failed_reset_download_preserves_existing_files_and_marker(self):
         """Stage downloads so an incomplete or invalid response cannot overwrite files."""
-        wizard.mark_setup_complete(self.player)
+        launcher.mark_setup_complete(self.player)
         (self.configs / "game.cfg").unlink()
         before = {path.name: path.read_bytes() for path in self.configs.iterdir()}
         for failure in (URLError("offline"), b" \n", b"\xff"):
@@ -230,7 +230,7 @@ class WizardTests(unittest.TestCase):
                 response = io.BytesIO(failure) if isinstance(failure, bytes) else failure
                 self.download.side_effect = [io.BytesIO(b"new autoexec\n"), response]
                 with patch("builtins.input", side_effect=["y"]):
-                    self.assertEqual(wizard.main(["--auto"]), 1)
+                    self.assertEqual(launcher.setup_main(["--auto"]), 1)
                 self.assertEqual(
                     {path.name: path.read_bytes() for path in self.configs.iterdir()}, before
                 )
@@ -240,19 +240,19 @@ class WizardTests(unittest.TestCase):
         before = self.player.read_bytes()
         with patch("builtins.input", side_effect=["Ranger", "Rng", "Red", "3"]), \
                 patch.object(Path, "replace", side_effect=PermissionError("read-only")):
-            self.assertEqual(wizard.main([]), 1)
+            self.assertEqual(launcher.setup_main([]), 1)
         self.assertEqual(self.player.read_bytes(), before)
         self.assertFalse(self.marker.exists())
         self.assertFalse(self.player.with_suffix(".cfg.tmp").exists())
 
     def test_failed_reset_replacement_invalidates_previous_setup(self):
         """A failed replacement leaves no stale marker or staged downloads."""
-        wizard.mark_setup_complete(self.player)
+        launcher.mark_setup_complete(self.player)
         (self.configs / "game.cfg").unlink()
         before = self.player.read_bytes()
         with patch("builtins.input", side_effect=["y"]), \
                 patch.object(Path, "replace", side_effect=PermissionError("read-only")):
-            self.assertEqual(wizard.main(["--auto"]), 1)
+            self.assertEqual(launcher.setup_main(["--auto"]), 1)
         self.assertEqual(self.player.read_bytes(), before)
         self.assertFalse(self.marker.exists())
         self.assertEqual(list(self.configs.glob(".wizard-download-*")), [])
@@ -262,17 +262,17 @@ class WizardTests(unittest.TestCase):
         self.player.unlink()
         self.player.mkdir()
         with patch("builtins.input") as prompt:
-            self.assertEqual(wizard.main(["--check"]), 1)
-            self.assertEqual(wizard.main(["--auto"]), 1)
+            self.assertEqual(launcher.setup_main(["--check"]), 1)
+            self.assertEqual(launcher.setup_main(["--auto"]), 1)
         prompt.assert_not_called()
         self.download.assert_not_called()
 
 
-@unittest.skipUnless(sys.platform.startswith("linux"), "Linux Bash launcher")
+@unittest.skipUnless(sys.platform.startswith("linux"), "Linux AppImage launcher")
 class LauncherTests(unittest.TestCase):
-    """Exercise the installed scripts with a fake engine and terminal."""
+    """Exercise the standalone launcher with a fake engine and terminal."""
 
-    autoexec_path = "configs/autoexec.cfg"
+    autoexec_path = "ezquake/configs/autoexec.cfg"
 
     def setUp(self):
         stack = contextlib.ExitStack()
@@ -280,21 +280,11 @@ class LauncherTests(unittest.TestCase):
         self.root = Path(stack.enter_context(
             tempfile.TemporaryDirectory(prefix="ezquake launch ' $HOME ")
         ))
-        shutil.copyfile(SCRIPTS / "launcher.sh", self.root / "launcher.sh")
-        shutil.copyfile(SCRIPTS / "wizard.py", self.root / "wizard_impl.py")
         shutil.copytree(CONFIGS, self.root / "templates")
-        (self.root / "wizard.py").write_text(
-            'from pathlib import Path\nimport io, runpy, sys\n'
-            'root = Path(__file__).resolve().parent\n'
-            'main = runpy.run_path(str(root / "wizard_impl.py"))["main"]\n'
-            'main.__globals__["urlopen"] = lambda url, timeout: '
-            'io.BytesIO((root / "templates" / url.rsplit("/", 1)[-1]).read_bytes())\n'
-            'if "--check" not in sys.argv:\n'
-            '    with (root / "wizard-runs").open("a") as log: log.write("run\\n")\n'
-            'sys.exit(main())\n', encoding="utf-8"
-        )
+        self.write_launcher(0)
         self.configs = self.root / "ezquake" / "configs"
         shutil.copytree(CONFIGS, self.configs)
+        self.marker = self.configs / ".wizard-complete"
         self.bin = self.root / "bin"
         self.bin.mkdir()
         (self.bin / "python3").symlink_to(sys.executable)
@@ -311,13 +301,36 @@ class LauncherTests(unittest.TestCase):
             '        "__GL_SYNC_TO_VBLANK", "__GL_MaxFramesAllowed",\n'
             '        "SDL_MOUSE_RELATIVE_MODE_WARP", "SDL_MOUSE_RELATIVE_SCALING",\n'
             '        "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR")}\n'
-            '}))\n', encoding="utf-8"
+            '}))\n'
+            'with Path("engine-runs").open("a") as log: log.write("run\\n")\n',
+            encoding="utf-8"
         )
         engine.chmod(0o755)
 
+    def write_launcher(self, status):
+        """Instrument the standalone launcher for offline downloads and setup failures."""
+        source = (SCRIPTS / "launcher.py").read_text()
+        source, entrypoint = source.rsplit('\n\nif __name__ == "__main__":', 1)
+        instrumentation = (
+            '\n\nimport io\n'
+            'root = Path(__file__).resolve().parent\n'
+            'urlopen = lambda url, timeout: '
+            'io.BytesIO((root / "templates" / url.rsplit("/", 1)[-1]).read_bytes())\n'
+            'original_setup = setup_main\n'
+            'def setup_main(argv=None):\n'
+            '    if "--check" not in (argv or []):\n'
+            '        with (root / "wizard-runs").open("a") as log: log.write("run\\n")\n'
+            + (f'        return {status}\n' if status else '')
+            + '    return original_setup(argv)\n'
+        )
+        (self.root / "launcher.py").write_text(
+            source + instrumentation + '\n\nif __name__ == "__main__":' + entrypoint,
+            encoding="utf-8"
+        )
+
     def launch(self, *args, answers="Ranger\nRng\nRed\n2.5\n"):
-        """Start outside the installation, passing input to the real wizard."""
-        return subprocess.run(["bash", str(self.root / "launcher.sh"), *args],
+        """Start outside the installation, passing input to the real launcher."""
+        return subprocess.run([sys.executable, str(self.root / "launcher.py"), *args],
                               cwd=self.bin, env=self.env, input=answers, text=True,
                               encoding="utf-8", capture_output=True, timeout=15,
                               check=False)
@@ -342,24 +355,77 @@ class LauncherTests(unittest.TestCase):
             self.assertIn(value, player)
 
     def test_xterm_preserves_script_path_and_stops_engine_on_cancellation(self):
-        """A terminal executes the wizard literally and propagates failure."""
+        """Run setup only in xterm, preserving paths, arguments and failure status."""
         xterm = self.bin / "xterm"
-        xterm.write_text('#!/usr/bin/env bash\nshift 3\nexec "$@"\n', encoding="utf-8")
+        xterm.write_text(
+            '#!/usr/bin/env python3\nimport json, os, sys\n'
+            'from pathlib import Path\n'
+            '(Path(__file__).resolve().parent.parent / "xterm.json").write_text('
+            'json.dumps(sys.argv[1:]))\n'
+            'os.execv(sys.argv[4], sys.argv[4:])\n', encoding="utf-8"
+        )
         xterm.chmod(0o755)
         self.env["DISPLAY"] = ":test"
-        result = self.launch()
+        result = self.launch("--mod", "a mod", "+connect", "127.0.0.1:27500")
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.marker.is_file())
+        command = ["-T", "ezQuake Setup Wizard", "-e", sys.executable,
+                   str(self.root / "launcher.py"), "--setup-only"]
+        self.assertEqual(json.loads((self.root / "xterm.json").read_text()),
+                         [*command, "--auto"])
+        self.assertEqual((self.root / "engine-runs").read_text().splitlines(), ["run"])
+        state = json.loads((self.root / "engine.json").read_text())
+        self.assertEqual(state["args"][-4:],
+                         ["-game", "a mod", "+connect", "127.0.0.1:27500"])
+
+        result = self.launch("--wizard", answers="Knight\nKnt\nBlue\n4\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((self.root / "xterm.json").read_text()), command)
+        self.assertIn('"Knight"', (self.configs / "player.cfg").read_text())
+
         (self.root / "engine.json").unlink()
         result = self.launch("--wizard", answers="")
-        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertFalse((self.root / "engine.json").exists())
+        self.assertEqual((self.root / "engine-runs").read_text().splitlines(), ["run", "run"])
+
+    def test_setup_only_modes_work_with_an_unmodified_standalone_launcher(self):
+        """Keep manual, automatic and check modes available without starting the game."""
+        shutil.copyfile(SCRIPTS / "launcher.py", self.root / "launcher.py")
+        (self.root / "ezQuake-x86_64.AppImage").unlink()
+        before = (self.configs / "player.cfg").read_bytes()
+        result = self.launch("--setup-only", "--check", answers="")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse(self.marker.exists())
+        self.assertEqual((self.configs / "player.cfg").read_bytes(), before)
+
+        result = self.launch("--setup-only")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        player = (self.configs / "player.cfg").read_text()
+        for value in ('"Ranger"', '"Rng"', '"Red"', '"Ranger SV"', '"2.5"'):
+            self.assertIn(value, player)
+        self.assertTrue(self.marker.is_file())
+        configured = (self.configs / "player.cfg").read_bytes()
+        for mode in ("--check", "--auto"):
+            with self.subTest(mode=mode):
+                result = self.launch("--setup-only", mode, answers="")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual((self.configs / "player.cfg").read_bytes(), configured)
         self.assertFalse((self.root / "engine.json").exists())
 
-    def test_help_runs_without_a_wizard_or_engine(self):
+    def test_failed_setup_stops_launch(self):
+        """Propagate setup failures before starting the engine."""
+        self.write_launcher(1)
+        self.assertEqual(self.launch().returncode, 1)
+        self.assertFalse((self.root / "engine.json").exists())
+
+    def test_help_does_not_start_setup_or_engine(self):
         """Show launcher help without checking or modifying configuration."""
-        (self.root / "wizard.py").unlink()
         result = self.launch("--help", answers="")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--wizard", result.stdout)
+        self.assertFalse((self.root / "wizard-runs").exists())
         self.assertFalse((self.root / "engine.json").exists())
 
     def test_first_run_repeat_and_forced_setup(self):
@@ -375,7 +441,7 @@ class LauncherTests(unittest.TestCase):
         self.assertFalse((self.configs / "config.cfg").exists())
 
     def test_deleted_configs_are_recovered_before_engine_launch(self):
-        """The launcher requests automatic recovery using the installed wizard."""
+        """The launcher recovers configs before starting the engine."""
         shutil.rmtree(self.configs)
         result = self.launch()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -399,23 +465,6 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertFalse((self.root / "wizard-runs").exists())
         self.assertFalse((self.root / "engine.json").exists())
-
-
-class PythonLauncherTests(LauncherTests):
-    """Apply the Bash launcher's integration checks to the Python version."""
-
-    autoexec_path = "ezquake/configs/autoexec.cfg"
-
-    def setUp(self):
-        super().setUp()
-        shutil.copyfile(SCRIPTS / "launcher.py", self.root / "launcher.py")
-
-    def launch(self, *args, answers="Ranger\nRng\nRed\n2.5\n"):
-        """Run the Python launcher independently of the working directory."""
-        return subprocess.run([sys.executable, str(self.root / "launcher.py"), *args],
-                              cwd=self.bin, env=self.env, input=answers, text=True,
-                              encoding="utf-8", capture_output=True, timeout=15,
-                              check=False)
 
     def test_mod_uses_shared_configs_before_connecting(self):
         """Select a QuakeWorld mod without reading its configs in place of ours."""
@@ -481,7 +530,8 @@ class PythonLauncherTests(LauncherTests):
     def test_separator_forwards_launcher_options_and_shell_characters_literally(self):
         """Preserve engine arguments without invoking a shell or launcher options."""
         (self.configs / ".wizard-complete").touch()
-        args = ["--mod", "a mod", "--wizard", "--help", "$(touch injected)", "'quoted'"]
+        args = ["--setup-only", "--check", "--auto", "--mod", "a mod",
+                "--wizard", "--help", "$(touch injected)", "'quoted'"]
         result = self.launch("--", *args, answers="")
         self.assertEqual(result.returncode, 0, result.stderr)
         state = json.loads((self.root / "engine.json").read_text())
@@ -507,7 +557,7 @@ class PythonLauncherTests(LauncherTests):
 
     def test_help_describes_ezquake_without_installed_files(self):
         """Help includes the port-specific executable options and config location."""
-        (self.root / "wizard.py").unlink()
+        shutil.rmtree(self.configs)
         (self.root / "ezQuake-x86_64.AppImage").unlink()
         result = self.launch("--help", answers="")
         self.assertEqual(result.returncode, 0, result.stderr)
