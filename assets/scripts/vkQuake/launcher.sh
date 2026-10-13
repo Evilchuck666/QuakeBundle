@@ -44,7 +44,7 @@ done
 
 # Python owns configuration validation and first-run state.
 SETUP_STATUS=0
-python3 "$VKROOT/wizard.py" --check || SETUP_STATUS=$?
+python3 "$VKROOT/setup.py" --check || SETUP_STATUS=$?
 case "$SETUP_STATUS" in
     0|2) ;;
     *) exit "$SETUP_STATUS" ;;
@@ -57,11 +57,11 @@ if [[ "$SETUP_STATUS" -eq 2 ]] || [[ "$RUN_WIZARD" -eq 1 ]]; then
     fi
     echo "Running Initial Setup Wizard..."
     if [[ -t 0 && -t 1 ]]; then
-        python3 "$VKROOT/wizard.py" "${WIZARD_ARGS[@]}"
+        python3 "$VKROOT/setup.py" "${WIZARD_ARGS[@]}"
     elif command -v xterm >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
-        xterm -T "vkQuake Setup Wizard" -e python3 "$VKROOT/wizard.py" "${WIZARD_ARGS[@]}"
+        xterm -T "vkQuake Setup Wizard" -e python3 "$VKROOT/setup.py" "${WIZARD_ARGS[@]}"
     else
-        python3 "$VKROOT/wizard.py" "${WIZARD_ARGS[@]}"
+        python3 "$VKROOT/setup.py" "${WIZARD_ARGS[@]}"
     fi
 fi
 
