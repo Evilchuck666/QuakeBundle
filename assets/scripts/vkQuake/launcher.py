@@ -244,8 +244,8 @@ def mark_setup_complete(config_path):
     get_setup_marker_path(config_path).write_text("Configured by launcher.py\n", encoding="utf-8")
 
 
-def setup_main(argv=None):
-    """Coordinate setup and report success, cancellation or failure to the user."""
+def parse_setup_args(argv):
+    """Parse the mutually exclusive setup modes."""
     parser = argparse.ArgumentParser(
         prog=f"{Path(__file__).name} --setup-only",
         description="Collect initial player settings for vkQuake.",
@@ -259,7 +259,38 @@ def setup_main(argv=None):
     modes.add_argument("--auto", action="store_true",
                        help="Recover missing files and ask for player settings only if needed.")
 
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def recover_missing_configs(config_path, directory_exists, missing):
+    """Recover missing files and return whether player.cfg was replaced."""
+    if not missing:
+        return False
+
+    names = CONFIG_FILES if directory_exists and prompt_reset(missing) else missing
+    recover_configs(config_path, names)
+
+    return "player.cfg" in names
+
+
+def configure_player(config_path):
+    """Read the config, collect player settings and save the completed setup."""
+    lines = load_config_lines(config_path)
+    name, sensitivity = prompt_user_settings()
+    updates = {
+        "name": name,
+        "_cl_name": name,
+        "hostname": f"{name} SV",
+        "sensitivity": sensitivity,
+    }
+
+    save_config_lines(config_path, update_config_lines(lines, updates))
+    mark_setup_complete(config_path)
+
+
+def setup_main(argv=None):
+    """Coordinate setup and report success, cancellation or failure to the user."""
+    args = parse_setup_args(argv)
 
     config_path = get_player_cfg_path()
 
@@ -276,31 +307,13 @@ def setup_main(argv=None):
         print("Welcome to the vkQuake Initial Setup Wizard!")
         print("--------------------------------------------")
 
-        if missing:
-            names = CONFIG_FILES if directory_exists and prompt_reset(missing) else missing
-            recover_configs(config_path, names)
-
-            if "player.cfg" in names:
-                configured = False
+        if recover_missing_configs(config_path, directory_exists, missing):
+            configured = False
 
         if args.auto and configured:
             return 0
 
-        lines = load_config_lines(config_path)
-
-        name, sensitivity = prompt_user_settings()
-
-        updates = {
-            "name": name,
-            "_cl_name": name,
-            "hostname": f"{name} SV",
-            "sensitivity": sensitivity
-        }
-
-        new_lines = update_config_lines(lines, updates)
-
-        save_config_lines(config_path, new_lines)
-        mark_setup_complete(config_path)
+        configure_player(config_path)
 
     except (OSError, ValueError) as error:
         print(f"Error preparing {config_path.parent}: {error}", file=sys.stderr)
