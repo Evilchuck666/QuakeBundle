@@ -72,6 +72,7 @@ Use -- to pass all remaining arguments directly to vkQuake.""")
             engine, "-basedir", str(root), "-userdir", str(root),
             "+exec", "configs/autoexec.cfg", *game_args,
         ])
+        return 0
     except OSError as error:
         print(f"Error launching vkQuake: {error}", file=sys.stderr)
         return 1
