@@ -170,7 +170,7 @@ def extract_inline_comment(line):
 
 def format_config_entry(key, value, comment=""):
     """Format a Quake string; its console parser cannot escape embedded quotes."""
-    if any(char in str(value) for char in '\"\r\n'):
+    if any(char in str(value) for char in '"\r\n'):
         raise ValueError(f"Invalid value for {key}: quotes and line breaks are not supported")
 
     return f'{key:<38}"{value}"{comment}\n'
