@@ -154,7 +154,7 @@ class VkQuakeAssetTests(unittest.TestCase):
             "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/" + relative:
             sources / relative
             for relative in (
-                "scripts/vkQuake/launcher.sh", "scripts/vkQuake/wizard.py", "icons/quake.svg"
+                "scripts/vkQuake/launcher.py", "scripts/vkQuake/wizard.py", "icons/quake.svg"
             )
         }
         real_fetch = singleplayer.fetch
@@ -167,7 +167,7 @@ class VkQuakeAssetTests(unittest.TestCase):
 
         self.assertEqual([args.args[0] for args in download.call_args_list], list(expected))
         self.assertEqual(sorted(p.name for p in self.install.iterdir()),
-                         ["launcher.sh", "quake.svg", "wizard.py"])
+                         ["launcher.py", "quake.svg", "wizard.py"])
         for source in expected.values():
             installed = self.install / source.name
             self.assertEqual(installed.read_bytes(), source.read_bytes())
@@ -178,7 +178,7 @@ class VkQuakeAssetTests(unittest.TestCase):
     def test_failed_download_preserves_existing_assets_and_removes_temporary_files(self):
         """A partial download must not overwrite an existing installation."""
         self.install.mkdir()
-        names = ("launcher.sh", "wizard.py", "quake.svg")
+        names = ("launcher.py", "wizard.py", "quake.svg")
         for name in names:
             (self.install / name).write_bytes(b"previous version")
 

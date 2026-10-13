@@ -432,7 +432,7 @@ class PythonLauncherTests(LauncherTests):
     def setUp(self):
         """Install the Python launcher beside the same wizard and fake engine."""
         super().setUp()
-        shutil.copyfile(ROOT / "assets" / "vkQuake" / "launcher.py", self.root / "launcher.py")
+        shutil.copyfile(SCRIPTS / "launcher.py", self.root / "launcher.py")
 
     def launch(self, *args, answers="\n\n"):
         """Run the Python launcher independently of its working directory."""
