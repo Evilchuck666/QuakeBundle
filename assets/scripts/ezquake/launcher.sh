@@ -44,20 +44,15 @@ done
 PLAYER_CFG="$EZROOT/ezquake/configs/config.cfg"
 
 if [[ ! -f "$PLAYER_CFG" ]] || [[ "$RUN_WIZARD" -eq 1 ]]; then
-    if [[ -t 1 ]]; then
+    if [[ -t 0 && -t 1 ]]; then
         echo "Running Initial Setup Wizard..."
-        python3 "$EZROOT/setup.py"
+        python3 "$EZROOT/wizard.py"
     else
-        if command -v xterm >/dev/null 2>&1; then
+        if command -v xterm >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
             xterm -T "ezQuake Setup Wizard" \
-              -e bash -lc "cd \"$EZROOT\" && \
-                           echo 'Running Initial Setup Wizard...' && \
-                           python3 \"$EZROOT/setup.py\"; \
-                           echo; \
-                           echo 'Press Enter to close this window...'; \
-                           read -r _"
+              -e python3 "$EZROOT/wizard.py"
         else
-            python3 "$EZROOT/setup.py"
+            python3 "$EZROOT/wizard.py"
         fi
     fi
 fi
