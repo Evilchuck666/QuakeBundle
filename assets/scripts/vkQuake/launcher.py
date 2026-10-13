@@ -48,7 +48,8 @@ def main(argv=None):
 
     for argument in arguments:
         if argument == "--help":
-            print(f"""Usage: {Path(__file__).name} [--help] [--wizard] [--mod NAME] [vkQuake arguments...]
+            print(f"Usage: {Path(__file__).name} [--help] [--wizard] [--mod NAME] "
+                  f"""[vkQuake arguments...]
 
 Options:
   --help      Show this help message and exit.
