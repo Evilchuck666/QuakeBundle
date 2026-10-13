@@ -188,9 +188,11 @@ class VkQuakeAssetTests(unittest.TestCase):
             if destination.name == "quake.svg":
                 raise OSError("download interrupted")
 
-        with patch.object(singleplayer, "fetch", side_effect=failing_fetch):
-            with self.assertRaisesRegex(OSError, "download interrupted"):
-                singleplayer.install_vkquake_assets()
+        with (
+            patch.object(singleplayer, "fetch", side_effect=failing_fetch),
+            self.assertRaisesRegex(OSError, "download interrupted")
+        ):
+            singleplayer.install_vkquake_assets()
 
         self.assertEqual(sorted(p.name for p in self.install.iterdir()), sorted(names))
         for name in names:
