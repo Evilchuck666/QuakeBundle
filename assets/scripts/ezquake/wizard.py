@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 """Collect initial player settings for the ezQuake configuration."""
 
-import os
+from __future__ import annotations
+
+import argparse
+import math
+import stat
+import sys
+import tempfile
+from http.client import HTTPException
+from pathlib import Path
+from urllib.request import urlopen
+
+CONFIG_FILES = ("autoexec.cfg", "game.cfg", "player.cfg")
+CONFIG_BASE_URL = (
+    "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/ezquake/"
+)
+
+NEEDS_SETUP = 2
 
 
 def get_input(prompt, default=None):
@@ -9,157 +25,300 @@ def get_input(prompt, default=None):
     if default:
         user_input = input(f"{prompt} [{default}]: ")
         return user_input if user_input else default
+
     return input(f"{prompt}: ")
 
 
-def print_banner():
-    """Print the setup wizard's welcome message."""
-    print("Welcome to the ezQuake Initial Setup Wizard!")
-    print("--------------------------------------------")
+def prompt_positive_number(prompt, default, integer=False):
+    """Ask again until the input is a finite, positive number."""
+    while True:
+        value = get_input(prompt, default).strip()
+
+        try:
+            number = int(value) if integer else float(value)
+
+            if number > 0 and math.isfinite(number):
+                return str(number)
+
+        except (ValueError, OverflowError):
+            pass
+
+        print("Please enter a positive " + ("integer." if integer else "number."))
+
+
+def prompt_player_name(prompt="Enter your player name", default="Player", allow_empty=False):
+    """Ask again until a name can be stored safely in the configuration."""
+    while True:
+        name = get_input(prompt, default).strip()
+
+        if (name or allow_empty) and not any(char in name for char in '\"\r\n'):
+            return name
+
+        requirement = "a name" if allow_empty else "a nonempty name"
+        print(f"Please enter {requirement} without double quotes or line breaks.")
 
 
 def prompt_user_settings():
-    """Ask for the player's name, team and mouse sensitivity."""
-    name = get_input("Enter your player name", "Player")
-    team = get_input("Enter your team name", "")
-    sensitivity = get_input("Enter your mouse sensitivity", "3")
-    return name, team, sensitivity
+    """Collect the player's name, short name, team and mouse sensitivity."""
+    name = prompt_player_name()
 
+    fakename = prompt_player_name(
+        "Enter a short version of your player name", name, allow_empty=False
+    )
 
-def build_updates_dict(name, team, sensitivity):
-    """Build configuration updates for the player's personal settings."""
-    return {
-        "name": name,
-        "team": team,
-        "sensitivity": sensitivity,
-    }
+    team = prompt_player_name("Enter your team name", "", allow_empty=False)
+    sensitivity = prompt_positive_number("Enter your mouse sensitivity", "3")
+
+    return name, fakename, team, sensitivity
 
 
 def get_player_cfg_path():
-    """Return the player configuration path relative to the installed wizard."""
-    return os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "ezquake", "configs", "player.cfg"
-    )
+    """Locate ezquake/configs/player.cfg beside the installed wizard and engine."""
+    return Path(__file__).resolve().parent / "ezquake" / "configs" / "player.cfg"
 
 
-def load_config_lines(config_path):
-    """Read configuration lines as UTF-8 text."""
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return f.readlines()
+def get_setup_marker_path(config_path):
+    """Keep first-run state separate from ezQuake's generated configuration files."""
+    return Path(config_path).with_name(".wizard-complete")
+
+
+def path_exists_as(path, expected_type):
+    """Check the path type, surfacing access errors and unexpected objects."""
+    try:
+        mode = path.stat().st_mode
+    except FileNotFoundError:
+        return False
+
+    if not expected_type(mode):
+        raise OSError(f"Unexpected path type: {path}")
+
+    return True
+
+
+def inspect_configs(config_path):
+    """Inspect every required file before any prompts or downloads."""
+    directory = config_path.parent
+    directory_exists = path_exists_as(directory, stat.S_ISDIR)
+
+    missing = [name for name in CONFIG_FILES
+               if not path_exists_as(directory / name, stat.S_ISREG)]
+
+    return directory_exists, missing
+
+
+def prompt_reset(missing):
+    """Offer an explicit reset, preserving existing files by default."""
+    print(f"Missing configuration files: {', '.join(missing)}")
+
+    while True:
+        answer = get_input(
+            "Reset all three .cfg files? This overwrites their custom settings. "
+            "Choose no to download only missing files (y/n)", "n"
+        ).strip().lower()
+
+        if answer in ("y", "yes"):
+            return True
+
+        if answer in ("n", "no"):
+            return False
+
+        print("Please enter y or n.")
+
+
+def recover_configs(config_path, names):
+    """Stage all downloads before atomically replacing individual files."""
+    directory = config_path.parent
+    directory.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix=".wizard-download-", dir=directory) as tmp:
+        staging = Path(tmp)
+
+        for name in names:
+            print(f"Downloading {name}...")
+
+            try:
+                with urlopen(CONFIG_BASE_URL + name, timeout=30) as response:
+                    content = response.read()
+
+                if not content.decode("utf-8").strip():
+                    raise ValueError("Downloaded file is empty")
+
+                (staging / name).write_bytes(content)
+
+            except (OSError, ValueError, HTTPException) as error:
+                raise OSError(f"Could not download {name}: {error}") from error
+
+        # Invalidate before replacement so an interrupted reset cannot leave a
+        # default player.cfg marked as already configured.
+        if "player.cfg" in names:
+            get_setup_marker_path(config_path).unlink(missing_ok=True)
+
+        for name in names:
+            (staging / name).replace(directory / name)
+            print(f"Recovered {directory / name}")
 
 
 def extract_inline_comment(line):
-    """Extract and normalize a configuration line's trailing comment."""
-    if "//" in line:
-        return " //" + line.split("//", 1)[1].strip()
+    """Find comments outside quoted values, including names containing //."""
+    quoted = False
+
+    for index, char in enumerate(line):
+        if char == '"':
+            quoted = not quoted
+        elif not quoted and line[index:index + 2] == "//":
+            return " " + line[index:].rstrip()
+
     return ""
 
 
 def format_config_entry(key, value, comment=""):
-    """Format a quoted configuration value with padding and an optional comment."""
-    padding = max(1, 38 - len(key))
-    return f"{key}{' ' * padding}\"{value}\"{comment}\n"
+    """Format a Quake string; its console parser cannot escape embedded quotes."""
+    if any(char in str(value) for char in '\"\r\n'):
+        raise ValueError(f"Invalid value for {key}: quotes and line breaks are not supported")
+
+    return f'{key:<38}"{value}"{comment}\n'
 
 
-def is_ignorable_line(line: str) -> bool:
-    """Return whether a line is blank or contains only a comment."""
-    stripped = line.strip()
-    return (not stripped) or stripped.startswith("//")
-
-
-def get_key_from_line(line: str) -> str | None:
-    """Return the first token of a configuration line, if present."""
-    parts = line.split(maxsplit=1)
-    return parts[0] if parts else None
-
-
-def rewrite_line_if_update(line: str, updates: dict[str, str], keys_found: set[str]) -> str:
-    """Replace a matching setting, preserving its comment and recording its key."""
-    key = get_key_from_line(line)
-    if not key:
-        return line
-
-    if key not in updates:
-        return line
-
-    comment = extract_inline_comment(line)
-    keys_found.add(key)
-    return format_config_entry(key, updates[key], comment)
-
-
-def update_lines_with_keys(
-    lines: list[str], updates: dict[str, str]
-) -> tuple[list[str], set[str]]:
-    """Update existing player settings, preserving other configuration lines."""
-    new_lines: list[str] = []
-    keys_found: set[str] = set()
+def update_existing_entries(lines, updates):
+    """Replace matching entries and return the keys found in the configuration."""
+    result = []
+    found = set()
 
     for line in lines:
-        if is_ignorable_line(line):
-            new_lines.append(line)
+        stripped = line.strip()
+
+        if not stripped or stripped.startswith("//"):
+            result.append(line)
             continue
 
-        key = get_key_from_line(line)
-        if not key:
-            new_lines.append(line)
-            continue
+        key = stripped.split(maxsplit=1)[0]
 
-        new_lines.append(rewrite_line_if_update(line, updates, keys_found))
+        if key in updates:
+            result.append(format_config_entry(key, updates[key], extract_inline_comment(line)))
+            found.add(key)
+        else:
+            result.append(line)
 
-    return new_lines, keys_found
+    return result, found
 
 
-def append_missing_keys(
-    new_lines: list[str], updates: dict[str, str], keys_found: set[str]
-) -> list[str]:
-    """Append any missing player settings."""
-    added_new = False
-    for key, value in updates.items():
-        if key in keys_found:
-            continue
+def append_config_entries(lines, entries):
+    """Return configuration lines with an appended block of new entries."""
+    result = list(lines)
 
-        if not added_new:
-            new_lines.append("\n// Added by wizard.py\n")
-            added_new = True
+    if not entries:
+        return result
 
-        new_lines.append(format_config_entry(key, value))
+    if result and not result[-1].endswith("\n"):
+        result[-1] += "\n"
 
-    return new_lines
+    result.append("\n// Added by wizard.py\n")
+    result.extend(format_config_entry(key, value) for key, value in entries.items())
+
+    return result
+
+
+def update_config_lines(lines, updates):
+    """Apply updates to existing entries and append any missing entries."""
+    result, found = update_existing_entries(lines, updates)
+    missing = {key: value for key, value in updates.items() if key not in found}
+
+    return append_config_entries(result, missing)
+
+
+def load_config_lines(config_path):
+    """Read UTF-8 configuration lines, retaining their line endings."""
+    return config_path.read_text(encoding="utf-8").splitlines(keepends=True)
 
 
 def save_config_lines(config_path, lines):
-    """Write the updated configuration as UTF-8 text."""
-    with open(config_path, 'w', encoding='utf-8') as f:
-        f.writelines(lines)
+    """Replace the configuration after writing it fully, cleaning up the temporary file."""
+    temporary = config_path.with_suffix(".cfg.tmp")
+
+    try:
+        temporary.write_text("".join(lines), encoding="utf-8")
+        temporary.replace(config_path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
-def main():
-    """Run the interactive setup and save the selected player settings."""
-    print_banner()
+def mark_setup_complete(config_path):
+    """Write the marker used by the launcher to recognize a completed setup."""
+    get_setup_marker_path(config_path).write_text("Configured by wizard.py\n", encoding="utf-8")
 
-    name, team, sensitivity = prompt_user_settings()
 
-    updates = build_updates_dict(
-        name=name,
-        team=team,
-        sensitivity=sensitivity,
-    )
+def main(argv=None):
+    """Coordinate setup and report success, cancellation or failure to the user."""
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    modes = parser.add_mutually_exclusive_group()
+
+    modes.add_argument("--check", action="store_true",
+                       help="Check only: exit 0 if ready, 2 if setup is needed, 1 on failure.")
+
+    modes.add_argument("--auto", action="store_true",
+                       help="Recover missing files and ask for player settings only if needed.")
+
+    args = parser.parse_args(argv)
 
     config_path = get_player_cfg_path()
 
-    if not os.path.exists(config_path):
-        print(f"Error: Config file not found at {config_path}")
-        return
+    try:
+        directory_exists, missing = inspect_configs(config_path)
+        configured = path_exists_as(get_setup_marker_path(config_path), stat.S_ISREG)
 
-    print(f"Updating {config_path}...")
+        if args.check:
+            return NEEDS_SETUP if missing or not configured else 0
 
-    lines = load_config_lines(config_path)
-    new_lines, keys_found = update_lines_with_keys(lines, updates)
-    new_lines = append_missing_keys(new_lines, updates, keys_found)
-    save_config_lines(config_path, new_lines)
+        if args.auto and not missing and configured:
+            return 0
 
-    print("Configuration saved successfully!")
+        print("Welcome to the ezQuake Initial Setup Wizard!")
+        print("--------------------------------------------")
+
+        if missing:
+            names = CONFIG_FILES if directory_exists and prompt_reset(missing) else missing
+            recover_configs(config_path, names)
+
+            if "player.cfg" in names:
+                configured = False
+
+        if args.auto and configured:
+            return 0
+
+        lines = load_config_lines(config_path)
+
+        name, fakename, team, sensitivity = prompt_user_settings()
+
+        updates = {
+            "name": name,
+            "cl_fakename": fakename,
+            "team": team,
+            "hostname": f"{name} SV",
+            "sensitivity": sensitivity
+        }
+
+        new_lines = update_config_lines(lines, updates)
+
+        save_config_lines(config_path, new_lines)
+        mark_setup_complete(config_path)
+
+    except (OSError, ValueError) as error:
+        print(f"Error preparing {config_path.parent}: {error}", file=sys.stderr)
+
+        return 1
+
+    except (EOFError, KeyboardInterrupt):
+        print("\nSetup cancelled; player settings were not saved. "
+              "Any configuration files already recovered remain in place.", file=sys.stderr)
+
+        return 1
+
+    print(f"Configuration saved successfully: {config_path}")
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
