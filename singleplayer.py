@@ -6,7 +6,8 @@
 """Download Quake, with its expansions, with steamcmd into the user's data directory.
 
 It also installs the latest release of the vkQuake engine for the current
-system, alongside its launcher, setup wizard and Quake icon, inside the game data.
+system, alongside its launcher with integrated setup and Quake icon, inside
+the game data.
 
 Usage:
     python3 singleplayer.py [--attempts N] STEAM_USERNAME
@@ -149,11 +150,10 @@ __all__ = [
 
 
 def install_vkquake_assets() -> None:
-    """Download the launcher, wizard and icon beside the installed engine."""
+    """Download the launcher with integrated setup and icon beside the engine."""
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     assets = (
         ("scripts/vkQuake/launcher.py", "launcher.py"),
-        ("scripts/vkQuake/wizard.py", "wizard.py"),
         ("icons/quake.svg", "quake.svg"),
     )
     INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
@@ -221,7 +221,7 @@ def main() -> None:
     step("Installing vkQuake")
     install_vkquake()
 
-    step("Installing vkQuake launcher, wizard and icon")
+    step("Installing vkQuake launcher and icon")
     install_vkquake_assets()
 
     print("\nDone.")
