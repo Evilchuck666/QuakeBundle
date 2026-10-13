@@ -159,7 +159,9 @@ def install_vkquake_assets() -> None:
     INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
 
     # Finish every download before replacing files from a previous installation.
-    with tempfile.TemporaryDirectory(prefix=".vkquake-assets-", dir=INSTALL_SINGLE_PLAYER_DIR) as tmp:
+    with tempfile.TemporaryDirectory(
+        prefix=".vkquake-assets-", dir=INSTALL_SINGLE_PLAYER_DIR
+    ) as tmp:
         staging = Path(tmp)
         for relative, filename in assets:
             print(f"    Downloading {filename}")
