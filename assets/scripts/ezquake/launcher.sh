@@ -34,6 +34,11 @@ EOF
             RUN_WIZARD=1
             shift # Remove argument
             ;;
+        --)
+            shift
+            GAME_ARGS+=("$@")
+            break
+            ;;
         *)
             GAME_ARGS+=("$1")
             shift # Move to next argument
@@ -41,22 +46,31 @@ EOF
     esac
 done
 
-PLAYER_CFG="$EZROOT/ezquake/configs/config.cfg"
+# Python owns configuration validation and first-run state.
+SETUP_STATUS=0
+python3 "$EZROOT/wizard.py" --check || SETUP_STATUS=$?
+case "$SETUP_STATUS" in
+    0|2) ;;
+    *) exit "$SETUP_STATUS" ;;
+esac
 
-if [[ ! -f "$PLAYER_CFG" ]] || [[ "$RUN_WIZARD" -eq 1 ]]; then
+if [[ "$SETUP_STATUS" -eq 2 ]] || [[ "$RUN_WIZARD" -eq 1 ]]; then
+    WIZARD_ARGS=()
+    if [[ "$RUN_WIZARD" -eq 0 ]]; then
+        WIZARD_ARGS+=(--auto)
+    fi
+    echo "Running Initial Setup Wizard..."
     if [[ -t 0 && -t 1 ]]; then
-        echo "Running Initial Setup Wizard..."
-        python3 "$EZROOT/wizard.py"
+        python3 "$EZROOT/wizard.py" "${WIZARD_ARGS[@]}"
+    elif command -v xterm >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
+        xterm -T "ezQuake Setup Wizard" -e python3 "$EZROOT/wizard.py" "${WIZARD_ARGS[@]}"
     else
-        if command -v xterm >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
-            xterm -T "ezQuake Setup Wizard" \
-              -e python3 "$EZROOT/wizard.py"
-        else
-            python3 "$EZROOT/wizard.py"
-        fi
+        python3 "$EZROOT/wizard.py" "${WIZARD_ARGS[@]}"
     fi
 fi
 
+# Keep generated engine settings and saves inside this installation.
+cd "$EZROOT"
 
 exec "$EZROOT/ezQuake-x86_64.AppImage" \
   -basedir "$EZROOT" \
