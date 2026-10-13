@@ -42,24 +42,26 @@ EOF
     esac
 done
 
-SETUP_MARKER="$VKROOT/id1/configs/.wizard-complete"
+# Python owns configuration validation and first-run state.
+SETUP_STATUS=0
+python3 "$VKROOT/wizard.py" --check || SETUP_STATUS=$?
+case "$SETUP_STATUS" in
+    0|2) ;;
+    *) exit "$SETUP_STATUS" ;;
+esac
 
-for config in autoexec.cfg game.cfg player.cfg; do
-    if [[ ! -f "$VKROOT/id1/configs/$config" ]]; then
-        echo "Missing configuration: $VKROOT/id1/configs/$config" >&2
-        echo "Copy assets/cfg/vkQuake/*.cfg into the installation's id1/configs directory." >&2
-        exit 1
+if [[ "$SETUP_STATUS" -eq 2 ]] || [[ "$RUN_WIZARD" -eq 1 ]]; then
+    WIZARD_ARGS=()
+    if [[ "$RUN_WIZARD" -eq 0 ]]; then
+        WIZARD_ARGS+=(--auto)
     fi
-done
-
-if [[ ! -f "$SETUP_MARKER" ]] || [[ "$RUN_WIZARD" -eq 1 ]]; then
     echo "Running Initial Setup Wizard..."
     if [[ -t 0 && -t 1 ]]; then
-        python3 "$VKROOT/wizard.py"
+        python3 "$VKROOT/wizard.py" "${WIZARD_ARGS[@]}"
     elif command -v xterm >/dev/null 2>&1 && [[ -n "${DISPLAY:-}" ]]; then
-        xterm -T "vkQuake Setup Wizard" -e python3 "$VKROOT/wizard.py"
+        xterm -T "vkQuake Setup Wizard" -e python3 "$VKROOT/wizard.py" "${WIZARD_ARGS[@]}"
     else
-        python3 "$VKROOT/wizard.py"
+        python3 "$VKROOT/wizard.py" "${WIZARD_ARGS[@]}"
     fi
 fi
 
