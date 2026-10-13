@@ -424,3 +424,55 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("--wizard", result.stdout)
         self.assertFalse((self.root / "wizard-runs").exists())
         self.assertFalse((self.root / "engine.json").exists())
+
+
+class PythonLauncherTests(LauncherTests):
+    """Apply the Bash launcher's integration checks to its Python migration."""
+
+    def setUp(self):
+        """Install the Python launcher beside the same wizard and fake engine."""
+        super().setUp()
+        shutil.copyfile(ROOT / "assets" / "vkQuake" / "launcher.py", self.root / "launcher.py")
+
+    def launch(self, *args, answers="\n\n"):
+        """Run the Python launcher independently of its working directory."""
+        return subprocess.run([sys.executable, str(self.root / "launcher.py"), *args],
+                              cwd=self.bin, env=self.env, input=answers, text=True,
+                              capture_output=True, timeout=15, check=False)
+
+    def test_separator_forwards_launcher_options_and_shell_characters_literally(self):
+        """Arguments after -- belong to the engine and are never shell code."""
+        self.marker.touch()
+        arguments = ["--help", "--wizard", "a mod", "$(touch injected)", "'quoted'"]
+        result = self.launch("--", *arguments)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((self.root / "engine.json").read_text())[-5:], arguments)
+        self.assertFalse((self.root / "wizard-runs").exists())
+        self.assertFalse((self.root / "injected").exists())
+
+    def test_engine_inherits_sdl_settings_and_returns_its_exit_status(self):
+        """Preserve the Bash environment overrides and engine exit status."""
+        self.marker.touch()
+        variables = {
+            "SDL_MOUSE_RELATIVE_MODE_WARP": "0",
+            "SDL_MOUSE_RELATIVE_SCALING": "0",
+            "SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR": "1",
+        }
+        self.env.update(dict.fromkeys(variables, "old"))
+        (self.root / "vkQuake.AppImage").write_text(
+            '#!/usr/bin/env python3\nimport json, os, sys\n'
+            'from pathlib import Path\n'
+            f'values = {{name: os.environ[name] for name in {list(variables)!r}}}\n'
+            'Path("engine-env.json").write_text(json.dumps(values))\n'
+            'sys.exit(7)\n'
+        )
+        self.assertEqual(self.launch().returncode, 7)
+        self.assertEqual(json.loads((self.root / "engine-env.json").read_text()), variables)
+
+    def test_help_works_without_installed_wizard_or_engine(self):
+        """Help is available before the remaining installation files exist."""
+        (self.root / "wizard.py").unlink()
+        (self.root / "vkQuake.AppImage").unlink()
+        result = self.launch("--help")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("launcher.py", result.stdout)
