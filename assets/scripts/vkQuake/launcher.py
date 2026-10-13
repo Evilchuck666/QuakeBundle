@@ -29,9 +29,7 @@ NEEDS_SETUP = 2
 def get_input(prompt, default=None):
     """Prompt for a value, using the default when the response is empty."""
     if default:
-        user_input = input(f"{prompt} [{default}]: ")
-        return user_input if user_input else default
-
+        return input(f"{prompt} [{default}]: ") or default
     return input(f"{prompt}: ")
 
 
