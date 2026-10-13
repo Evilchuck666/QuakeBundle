@@ -46,15 +46,16 @@ def prompt_positive_number(prompt, default, integer=False):
         print("Please enter a positive " + ("integer." if integer else "number."))
 
 
-def prompt_player_name():
-    """Ask again until the player enters a nonempty, valid Quake name."""
+def prompt_player_name(prompt="Enter your player name", default="Player", allow_empty=False):
+    """Ask again until a name can be stored safely in the configuration."""
     while True:
-        name = get_input("Enter your player name", "Player").strip()
+        name = get_input(prompt, default).strip()
 
-        if name and not any(char in name for char in '\"\r\n'):
+        if (name or allow_empty) and not any(char in name for char in '\"\r\n'):
             return name
 
-        print('Please enter a nonempty name without double quotes or line breaks.')
+        requirement = "a name" if allow_empty else "a nonempty name"
+        print(f"Please enter {requirement} without double quotes or line breaks.")
 
 
 def prompt_user_settings():
