@@ -12,7 +12,6 @@ from http.client import HTTPException
 from pathlib import Path
 from urllib.request import urlopen
 
-
 CONFIG_FILES = ("autoexec.cfg", "game.cfg", "player.cfg")
 CONFIG_BASE_URL = (
     "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/vkQuake/"
