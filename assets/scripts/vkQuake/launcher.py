@@ -35,13 +35,13 @@ def get_input(prompt, default=None):
     return input(f"{prompt}: ")
 
 
-def prompt_positive_number(prompt, default, integer=False):
+def prompt_positive_number(prompt, default):
     """Ask again until the input is a finite, positive number."""
     while True:
         value = get_input(prompt, default).strip()
 
         try:
-            number = int(value) if integer else float(value)
+            number = float(value)
 
             if number > 0 and math.isfinite(number):
                 return str(number)
@@ -49,19 +49,18 @@ def prompt_positive_number(prompt, default, integer=False):
         except (ValueError, OverflowError):
             pass
 
-        print("Please enter a positive " + ("integer." if integer else "number."))
+        print("Please enter a positive number.")
 
 
-def prompt_player_name(prompt="Enter your player name", default="Player", allow_empty=False):
+def prompt_player_name(prompt="Enter your player name", default="Player"):
     """Ask again until a name can be stored safely in the configuration."""
     while True:
         name = get_input(prompt, default).strip()
 
-        if (name or allow_empty) and not any(char in name for char in '\"\r\n'):
+        if name and not any(char in name for char in '\"\r\n'):
             return name
 
-        requirement = "a name" if allow_empty else "a nonempty name"
-        print(f"Please enter {requirement} without double quotes or line breaks.")
+        print("Please enter a nonempty name without double quotes or line breaks.")
 
 
 def prompt_user_settings():
