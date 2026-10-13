@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -17,7 +18,7 @@ from unittest.mock import patch
 from urllib.error import URLError
 
 ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS = ROOT / "assets" / "scripts" / "ezquake"
+SCRIPTS = ROOT / "assets" / "scripts" / "ezQuake"
 CONFIGS = ROOT / "assets" / "cfg" / "ezquake"
 SPEC = importlib.util.spec_from_file_location("ezquake_wizard", SCRIPTS / "wizard.py")
 wizard = importlib.util.module_from_spec(SPEC)
@@ -271,6 +272,8 @@ class WizardTests(unittest.TestCase):
 class LauncherTests(unittest.TestCase):
     """Exercise the installed scripts with a fake engine and terminal."""
 
+    autoexec_path = "configs/autoexec.cfg"
+
     def setUp(self):
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
@@ -326,7 +329,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         state = json.loads((self.root / "engine.json").read_text())
         self.assertEqual(state["args"], [
-            "-basedir", str(self.root), "-nohome", "+exec", "configs/autoexec.cfg", *args
+            "-basedir", str(self.root), "-nohome", "+exec", self.autoexec_path, *args
         ])
         self.assertEqual(state["cwd"], str(self.root))
         self.assertEqual(state["env"], {
@@ -396,3 +399,119 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertFalse((self.root / "wizard-runs").exists())
         self.assertFalse((self.root / "engine.json").exists())
+
+
+class PythonLauncherTests(LauncherTests):
+    """Apply the Bash launcher's integration checks to the Python version."""
+
+    autoexec_path = "ezquake/configs/autoexec.cfg"
+
+    def setUp(self):
+        super().setUp()
+        shutil.copyfile(SCRIPTS / "launcher.py", self.root / "launcher.py")
+
+    def launch(self, *args, answers="Ranger\nRng\nRed\n2.5\n"):
+        """Run the Python launcher independently of the working directory."""
+        return subprocess.run([sys.executable, str(self.root / "launcher.py"), *args],
+                              cwd=self.bin, env=self.env, input=answers, text=True,
+                              encoding="utf-8", capture_output=True, timeout=15,
+                              check=False)
+
+    def test_mod_uses_shared_configs_before_connecting(self):
+        """Select a QuakeWorld mod without reading its configs in place of ours."""
+        (self.configs / ".wizard-complete").touch()
+        mod_configs = self.root / "fortress" / "configs"
+        mod_configs.mkdir(parents=True)
+        for name in ("autoexec.cfg", "game.cfg", "player.cfg"):
+            (mod_configs / name).write_text("echo mod settings\n")
+
+        for flags in (("--mod", "fortress"), ("-game", "fortress"),
+                      ("--", "-game", "fortress")):
+            with self.subTest(flags=flags):
+                result = self.launch(*flags, "+connect", "127.0.0.1:27500", answers="")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                state = json.loads((self.root / "engine.json").read_text())
+                args = state["args"]
+                self.assertEqual(args[-4:], ["-game", "fortress", "+connect", "127.0.0.1:27500"])
+                self.assertLess(args.index("+exec"), args.index("+connect"))
+                autoexec = Path(state["cwd"]) / args[args.index("+exec") + 1]
+                self.assertEqual(autoexec, self.configs / "autoexec.cfg")
+                includes = [shlex.split(line)[1] for line in autoexec.read_text().splitlines()
+                            if line.startswith("exec ")]
+                self.assertEqual([Path(state["cwd"]) / path for path in includes],
+                                 [self.configs / "game.cfg", self.configs / "player.cfg"])
+        for name in ("autoexec.cfg", "game.cfg", "player.cfg"):
+            self.assertEqual((mod_configs / name).read_text(), "echo mod settings\n")
+        self.assertFalse((self.root / "wizard-runs").exists())
+
+    def test_existing_shared_includes_are_updated_without_resetting_settings(self):
+        """Keep custom settings and formatting when upgrading the old exec paths."""
+        (self.configs / ".wizard-complete").touch()
+        autoexec = self.configs / "autoexec.cfg"
+        original = (b'// exec configs/game.cfg\r\n'
+                    b'exec "configs/game.cfg" // defaults\r\n'
+                    b'EXEC\tconfigs/player.cfg; sensitivity 7\r\n')
+        expected = (b'// exec configs/game.cfg\r\n'
+                    b'exec "ezquake/configs/game.cfg" // defaults\r\n'
+                    b'EXEC\tezquake/configs/player.cfg; sensitivity 7\r\n')
+        autoexec.write_bytes(original)
+        autoexec.chmod(0o640)
+        before = {name: (self.configs / name).read_bytes() for name in ("game.cfg", "player.cfg")}
+        result = self.launch(answers="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(autoexec.read_bytes(), expected)
+        self.assertEqual(autoexec.stat().st_mode & 0o777, 0o640)
+        modified = autoexec.stat().st_mtime_ns
+        self.assertEqual(self.launch(answers="").returncode, 0)
+        self.assertEqual(autoexec.stat().st_mtime_ns, modified)
+        self.assertEqual({name: (self.configs / name).read_bytes() for name in before}, before)
+        self.assertEqual(list(self.configs.glob(".launcher-autoexec-*")), [])
+        self.assertFalse((self.root / "id1").exists())
+
+    def test_missing_mod_value_stops_before_setup(self):
+        """Do not consume engine options as mod names or run the wizard on failure."""
+        for args in (("--mod",), ("--mod", ""), ("--mod", "--wizard"), ("--mod", "+connect")):
+            with self.subTest(args=args):
+                result = self.launch(*args)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("--mod requires a mod folder name", result.stderr)
+        self.assertFalse((self.root / "engine.json").exists())
+        self.assertFalse((self.root / "wizard-runs").exists())
+
+    def test_separator_forwards_launcher_options_and_shell_characters_literally(self):
+        """Preserve engine arguments without invoking a shell or launcher options."""
+        (self.configs / ".wizard-complete").touch()
+        args = ["--mod", "a mod", "--wizard", "--help", "$(touch injected)", "'quoted'"]
+        result = self.launch("--", *args, answers="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = json.loads((self.root / "engine.json").read_text())
+        self.assertEqual(state["args"][-len(args):], args)
+        self.assertFalse((self.root / "injected").exists())
+        self.assertFalse((self.root / "wizard-runs").exists())
+
+    def test_engine_exit_status_is_preserved(self):
+        """The launcher exits with the engine's status."""
+        (self.configs / ".wizard-complete").touch()
+        (self.root / "ezQuake-x86_64.AppImage").write_text(
+            '#!/usr/bin/env python3\nimport sys\nsys.exit(7)\n'
+        )
+        self.assertEqual(self.launch(answers="").returncode, 7)
+
+    def test_missing_engine_reports_ezquake_error(self):
+        """Report an unavailable executable after checking an existing configuration."""
+        (self.configs / ".wizard-complete").touch()
+        (self.root / "ezQuake-x86_64.AppImage").unlink()
+        result = self.launch(answers="")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Error launching ezQuake", result.stderr)
+
+    def test_help_describes_ezquake_without_installed_files(self):
+        """Help includes the port-specific executable options and config location."""
+        (self.root / "wizard.py").unlink()
+        (self.root / "ezQuake-x86_64.AppImage").unlink()
+        result = self.launch("--help", answers="")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("ezQuake arguments", result.stdout)
+        self.assertIn("--mod NAME", result.stdout)
+        self.assertIn("ezquake/configs/autoexec.cfg", result.stdout)
+        self.assertNotIn("vkQuake", result.stdout)
