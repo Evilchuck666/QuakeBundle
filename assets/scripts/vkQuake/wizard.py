@@ -162,8 +162,15 @@ def main():
 
     try:
         lines = load_config_lines(config_path)
+
         name, sensitivity = prompt_user_settings()
-        updates = {"name": name, "sensitivity": sensitivity}
+
+        updates = {
+            "name": name,
+            "_cl_name": name,
+            "sensitivity": sensitivity
+        }
+
         new_lines = update_config_lines(lines, updates)
 
         save_config_lines(config_path, new_lines)
