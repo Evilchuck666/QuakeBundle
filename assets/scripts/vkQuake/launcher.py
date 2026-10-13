@@ -40,6 +40,24 @@ def prepare_shared_autoexec(root):
             staged.unlink(missing_ok=True)
 
 
+def run_setup_wizard(wizard, automatic=False):
+    """Run setup in a terminal when needed and return its exit status."""
+    command = list(wizard)
+
+    if automatic:
+        command.append("--auto")
+
+    print("Running Initial Setup Wizard...", flush=True)
+
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        xterm = shutil.which("xterm")
+
+        if xterm and os.environ.get("DISPLAY"):
+            command = [xterm, "-T", "vkQuake Setup Wizard", "-e", *command]
+
+    return subprocess.run(command, check=False).returncode
+
+
 def main(argv=None):
     """Handle launcher options, run setup if needed, then replace this process."""
     arguments = iter(sys.argv[1:] if argv is None else argv)
@@ -98,19 +116,7 @@ Use -- to pass all remaining arguments directly to vkQuake.""")
             return status if status >= 0 else 128 - status
 
         if status == 2 or run_wizard:
-            command = list(wizard)
-
-            if not run_wizard:
-                command.append("--auto")
-
-            print("Running Initial Setup Wizard...", flush=True)
-
-            if not (sys.stdin.isatty() and sys.stdout.isatty()):
-                xterm = shutil.which("xterm")
-                if xterm and os.environ.get("DISPLAY"):
-                    command = [xterm, "-T", "vkQuake Setup Wizard", "-e", *command]
-
-            status = subprocess.run(command, check=False).returncode
+            status = run_setup_wizard(wizard, automatic=not run_wizard)
             if status != 0:
                 return status if status >= 0 else 128 - status
 
