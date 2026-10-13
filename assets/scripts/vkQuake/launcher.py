@@ -372,21 +372,11 @@ def run_setup_wizard(automatic=False):
     return setup_main(arguments)
 
 
-def main(argv=None):
-    """Handle launcher options, run setup if needed, then replace this process."""
-    argv = list(sys.argv[1:] if argv is None else argv)
-    # A terminal child must configure the game and return, without launching it.
-    if argv[:1] == ["--setup-only"]:
-        return setup_main(argv[1:])
-
-    arguments = iter(argv)
-    run_wizard = False
-    game_args = []
-
-    for argument in arguments:
-        if argument == "--help":
-            print(f"Usage: {Path(__file__).name} [--help] [--wizard] [--mod NAME] "
-                  f"""[vkQuake arguments...]
+def print_launcher_help():
+    """Show launcher options, setup modes and examples."""
+    program = Path(__file__).name
+    print(f"Usage: {program} [--help] [--wizard] [--mod NAME] "
+          f"""[vkQuake arguments...]
 
 Options:
   --help      Show this help message and exit.
@@ -394,67 +384,107 @@ Options:
   --mod NAME  Load a mod folder beside id1 (equivalent to -game NAME).
 
 Setup without launching vkQuake:
-  {Path(__file__).name} --setup-only [--check | --auto]
+  {program} --setup-only [--check | --auto]
   --check     Exit 0 if ready, 2 if setup is needed, or 1 on failure.
   --auto      Recover missing files and ask for player settings only if needed.
 
 Examples:
-  {Path(__file__).name} --mod mg1
-  {Path(__file__).name} -game rogue +map start
+  {program} --mod mg1
+  {program} -game rogue +map start
 
 Every mod uses id1/configs/autoexec.cfg and its shared game/player settings.
 
 All other arguments are passed to vkQuake.
 Use -- to pass all remaining arguments directly to vkQuake.""")
-            return 0
 
-        if argument == "--wizard":
-            run_wizard = True
+
+def parse_launcher_args(argv):
+    """Read launcher options in order, preserving all other engine arguments."""
+    options = argparse.Namespace(help=False, wizard=False, game_args=[])
+    arguments = iter(argv)
+
+    for argument in arguments:
+        if argument == "--help":
+            options.help = True
+            break
+        elif argument == "--wizard":
+            options.wizard = True
         elif argument == "--mod":
             mod = next(arguments, "")
             if not mod or mod.startswith(("-", "+")):
-                print("Error: --mod requires a mod folder name (for example: --mod mg1).",
-                      file=sys.stderr)
-                return 2
-            game_args.extend(["-game", mod])
+                raise ValueError("--mod requires a mod folder name (for example: --mod mg1).")
+            options.game_args.extend(["-game", mod])
         elif argument == "--":
-            game_args.extend(arguments)
+            options.game_args.extend(arguments)
             break
         else:
-            game_args.append(argument)
+            options.game_args.append(argument)
 
-    root = Path(__file__).resolve().parent
+    return options
 
-    # SDL/X11: avoid warp mode and request compositor bypass.
+
+def configure_sdl_environment():
+    """Set SDL/X11 overrides inherited by setup and the engine."""
     os.environ.update(
         SDL_MOUSE_RELATIVE_MODE_WARP="0",
         SDL_MOUSE_RELATIVE_SCALING="0",
         SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR="1",
     )
 
+
+def ensure_setup(force=False):
+    """Run required or forced setup and normalize its exit status."""
+    status = setup_main(["--check"])
+    if status == NEEDS_SETUP or (status == 0 and force):
+        status = run_setup_wizard(automatic=not force)
+
+    return status if status >= 0 else 128 + abs(status)
+
+
+def launch_engine(root, game_args):
+    """Prepare shared settings and replace this process with vkQuake."""
+    prepare_shared_autoexec(root)
+
+    # Keep generated engine settings and saves inside this installation.
+    os.chdir(root)
+    engine = str(root / "vkQuake.AppImage")
+
+    sys.stdout.flush()
+    os.execv(
+        engine,
+        [
+            engine, "-basedir", str(root), "-userdir", str(root),
+            "+exec", "../id1/configs/autoexec.cfg", *game_args,
+        ]
+    )
+
+
+def main(argv=None):
+    """Handle launcher options, run setup if needed, then replace this process."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # A terminal child must configure the game and return, without launching it.
+    if argv[:1] == ["--setup-only"]:
+        return setup_main(argv[1:])
+
     try:
-        status = setup_main(["--check"])
-        if status == NEEDS_SETUP or (status == 0 and run_wizard):
-            status = run_setup_wizard(automatic=not run_wizard)
+        options = parse_launcher_args(argv)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
 
+    if options.help:
+        print_launcher_help()
+        return 0
+
+    root = Path(__file__).resolve().parent
+    configure_sdl_environment()
+
+    try:
+        status = ensure_setup(force=options.wizard)
         if status != 0:
-            return status if status >= 0 else 128 + abs(status)
+            return status
 
-        prepare_shared_autoexec(root)
-
-        # Keep generated engine settings and saves inside this installation.
-        os.chdir(root)
-        engine = str(root / "vkQuake.AppImage")
-
-        sys.stdout.flush()
-        os.execv(
-            engine,
-            [
-                engine, "-basedir", str(root), "-userdir", str(root),
-                "+exec", "../id1/configs/autoexec.cfg", *game_args,
-            ]
-        )
-
+        launch_engine(root, options.game_args)
         return 0
     except OSError as error:
         print(f"Error launching vkQuake: {error}", file=sys.stderr)
