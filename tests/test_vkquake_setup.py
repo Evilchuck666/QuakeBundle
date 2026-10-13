@@ -28,6 +28,8 @@ SPEC.loader.exec_module(wizard)
 class WizardTests(unittest.TestCase):
     """Verify wizard settings, failure handling, and installed paths."""
 
+    # pylint: disable=too-many-public-methods
+
     def setUp(self):
         """Create an isolated player config and capture wizard output."""
         temporary = tempfile.TemporaryDirectory(prefix="vkquake setup ")
