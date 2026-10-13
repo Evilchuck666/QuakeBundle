@@ -236,8 +236,7 @@ def save_config_lines(config_path, lines):
         temporary.write_text("".join(lines), encoding="utf-8")
         temporary.replace(config_path)
     finally:
-        if temporary.exists():
-            temporary.unlink()
+        temporary.unlink(missing_ok=True)
 
 
 def mark_setup_complete(config_path):
