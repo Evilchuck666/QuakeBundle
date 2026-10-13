@@ -106,8 +106,10 @@ class ImportCompatibilityTests(unittest.TestCase):
         """Expose every compatibility export without depending on the caller's cwd."""
         for body in (
             "namespace = runpy.run_path(source)",
-            "namespace = {'__file__': source, '__name__': 'embedded_installer'}\n"
-            "exec(compile(Path(source).read_text(encoding='utf-8'), source, 'exec'), namespace)",
+            (
+                "namespace = {'__file__': source, '__name__': 'embedded_installer'}\n"
+                "exec(compile(Path(source).read_text(encoding='utf-8'), source, 'exec'), namespace)"
+            ),
         ):
             with self.subTest(body=body):
                 self.run_import(
