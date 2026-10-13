@@ -20,7 +20,7 @@ from urllib.error import HTTPError, URLError
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "assets" / "scripts" / "vkQuake"
 CONFIGS = ROOT / "assets" / "cfg" / "vkQuake"
-SPEC = importlib.util.spec_from_file_location("vkquake_wizard", SCRIPTS / "wizard.py")
+SPEC = importlib.util.spec_from_file_location("vkquake_setup", SCRIPTS / "setup.py")
 wizard = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(wizard)
 
@@ -113,7 +113,7 @@ class WizardSettingsTests(WizardTestCase):
 
     def test_installed_path_is_independent_of_working_directory(self):
         """Resolve the config relative to the installed wizard script."""
-        with patch.object(wizard, "__file__", str(self.root / "wizard.py")):
+        with patch.object(wizard, "__file__", str(self.root / "setup.py")):
             path = self.get_player_cfg_path()
         self.assertEqual(path, self.config)
 
@@ -291,7 +291,7 @@ class LauncherTests(unittest.TestCase):
         self.root = Path(stack.enter_context(
             tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
         ))
-        shutil.copyfile(SCRIPTS / "vkQuake.sh", self.root / "vkQuake.sh")
+        shutil.copyfile(SCRIPTS / "launcher.sh", self.root / "launcher.sh")
         self.configs = self.root / "id1" / "configs"
         shutil.copytree(CONFIGS, self.configs)
         self.marker = self.configs / ".wizard-complete"
@@ -300,7 +300,7 @@ class LauncherTests(unittest.TestCase):
         (self.bin / "python3").symlink_to(sys.executable)
         self.env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
                         DISPLAY="", PYTHONDONTWRITEBYTECODE="1")
-        shutil.copyfile(SCRIPTS / "wizard.py", self.root / "setup.py")
+        shutil.copyfile(SCRIPTS / "setup.py", self.root / "setup_impl.py")
         shutil.copytree(CONFIGS, self.root / "templates")
         self.write_wizard(0)
         engine = self.root / "vkQuake.AppImage"
@@ -311,10 +311,10 @@ class LauncherTests(unittest.TestCase):
 
     def write_wizard(self, status):
         """Run the actual wizard with local downloads and optional setup failure."""
-        (self.root / "wizard.py").write_text(
+        (self.root / "setup.py").write_text(
             'from pathlib import Path\nimport io, runpy, sys\n'
             'root = Path(__file__).resolve().parent\n'
-            'scope = runpy.run_path(str(root / "setup.py"))\n'
+            'scope = runpy.run_path(str(root / "setup_impl.py"))\n'
             'main = scope["main"]\n'
             'main.__globals__["urlopen"] = lambda url, timeout: '
             'io.BytesIO((root / "templates" / url.rsplit("/", 1)[-1]).read_bytes())\n'
@@ -326,7 +326,7 @@ class LauncherTests(unittest.TestCase):
 
     def launch(self, *args, answers="\n\n"):
         """Run the launcher from another directory and capture its output."""
-        return subprocess.run(["bash", str(self.root / "vkQuake.sh"), *args],
+        return subprocess.run(["bash", str(self.root / "launcher.sh"), *args],
                               cwd=self.bin, env=self.env, input=answers, text=True,
                               capture_output=True, timeout=15, check=False)
 

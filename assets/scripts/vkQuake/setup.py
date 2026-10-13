@@ -205,7 +205,7 @@ def append_config_entries(lines, entries):
     if result and not result[-1].endswith("\n"):
         result[-1] += "\n"
 
-    result.append("\n// Added by wizard.py\n")
+    result.append("\n// Added by setup.py\n")
     result.extend(format_config_entry(key, value) for key, value in entries.items())
 
     return result
@@ -238,7 +238,7 @@ def save_config_lines(config_path, lines):
 
 def mark_setup_complete(config_path):
     """Write the marker used by the launcher to recognize a completed setup."""
-    get_setup_marker_path(config_path).write_text("Configured by wizard.py\n", encoding="utf-8")
+    get_setup_marker_path(config_path).write_text("Configured by setup.py\n", encoding="utf-8")
 
 
 def main(argv=None):
