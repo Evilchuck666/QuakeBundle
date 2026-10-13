@@ -6,7 +6,7 @@
 """Download Quake, with its expansions, with steamcmd into the user's data directory.
 
 It also installs the latest release of the vkQuake engine for the current
-system, inside the game data.
+system, alongside its launcher, setup wizard and Quake icon, inside the game data.
 
 Usage:
     python3 singleplayer.py [--attempts N] STEAM_USERNAME
@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # Keep direct execution, runpy and exec() working from other directories without
@@ -131,6 +132,7 @@ __all__ = [
     "install_game_data",
     "install_steamcmd",
     "install_vkquake",
+    "install_vkquake_assets",
     "install_vkquake_mac",
     "login",
     "mb",
@@ -144,6 +146,32 @@ __all__ = [
     "user_data_dir",
     "vkquake_release",
 ]
+
+
+def install_vkquake_assets() -> None:
+    """Download the launcher, wizard and icon beside the installed engine."""
+    base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
+    assets = (
+        ("scripts/vkQuake/launcher.sh", "launcher.sh"),
+        ("scripts/vkQuake/wizard.py", "wizard.py"),
+        ("icons/quake.svg", "quake.svg"),
+    )
+    INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Finish every download before replacing files from a previous installation.
+    with tempfile.TemporaryDirectory(prefix=".vkquake-assets-", dir=INSTALL_SINGLE_PLAYER_DIR) as tmp:
+        staging = Path(tmp)
+        for relative, filename in assets:
+            print(f"    Downloading {filename}")
+            downloaded = staging / filename
+            fetch(base_url + relative, downloaded)
+            if os.name != "nt":
+                downloaded.chmod(0o644 if filename.endswith(".svg") else 0o755)
+
+        for _, filename in assets:
+            destination = INSTALL_SINGLE_PLAYER_DIR / filename
+            (staging / filename).replace(destination)
+            print(f"    ✔ Installed {destination}")
 
 
 def main() -> None:
@@ -190,6 +218,9 @@ def main() -> None:
 
     step("Installing vkQuake")
     install_vkquake()
+
+    step("Installing vkQuake launcher, wizard and icon")
+    install_vkquake_assets()
 
     print("\nDone.")
 
