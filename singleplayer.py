@@ -152,7 +152,7 @@ def install_vkquake_assets() -> None:
     """Download the launcher, wizard and icon beside the installed engine."""
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     assets = (
-        ("scripts/vkQuake/launcher.sh", "launcher.sh"),
+        ("scripts/vkQuake/launcher.py", "launcher.py"),
         ("scripts/vkQuake/wizard.py", "wizard.py"),
         ("icons/quake.svg", "quake.svg"),
     )
