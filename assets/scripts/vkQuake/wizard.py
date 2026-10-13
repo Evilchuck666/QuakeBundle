@@ -3,9 +3,22 @@
 
 from __future__ import annotations
 
+import argparse
 import math
+import stat
 import sys
+import tempfile
+from http.client import HTTPException
 from pathlib import Path
+from urllib.request import urlopen
+
+
+CONFIG_FILES = ("autoexec.cfg", "game.cfg", "player.cfg")
+CONFIG_BASE_URL = (
+    "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/vkQuake/"
+)
+
+NEEDS_SETUP = 2
 
 
 def get_input(prompt, default=None):
@@ -61,6 +74,82 @@ def get_player_cfg_path():
 def get_setup_marker_path(config_path):
     """Keep first-run state separate from vkQuake's generated configuration files."""
     return Path(config_path).with_name(".wizard-complete")
+
+
+def path_exists_as(path, expected_type):
+    """Check the path type, surfacing access errors and unexpected objects."""
+    try:
+        mode = path.stat().st_mode
+    except FileNotFoundError:
+        return False
+
+    if not expected_type(mode):
+        raise OSError(f"Unexpected path type: {path}")
+
+    return True
+
+
+def inspect_configs(config_path):
+    """Inspect every required file before any prompts or downloads."""
+    directory = config_path.parent
+    directory_exists = path_exists_as(directory, stat.S_ISDIR)
+
+    missing = [name for name in CONFIG_FILES
+               if not path_exists_as(directory / name, stat.S_ISREG)]
+
+    return directory_exists, missing
+
+
+def prompt_reset(missing):
+    """Offer an explicit reset, preserving existing files by default."""
+    print(f"Missing configuration files: {', '.join(missing)}")
+
+    while True:
+        answer = get_input(
+            "Reset all three .cfg files? This overwrites their custom settings. "
+            "Choose no to download only missing files (y/n)", "n"
+        ).strip().lower()
+
+        if answer in ("y", "yes"):
+            return True
+
+        if answer in ("n", "no"):
+            return False
+
+        print("Please enter y or n.")
+
+
+def recover_configs(config_path, names):
+    """Stage all downloads before atomically replacing individual files."""
+    directory = config_path.parent
+    directory.mkdir(parents=True, exist_ok=True)
+
+    with tempfile.TemporaryDirectory(prefix=".wizard-download-", dir=directory) as tmp:
+        staging = Path(tmp)
+
+        for name in names:
+            print(f"Downloading {name}...")
+
+            try:
+                with urlopen(CONFIG_BASE_URL + name, timeout=30) as response:
+                    content = response.read()
+
+                if not content.decode("utf-8").strip():
+                    raise ValueError("Downloaded file is empty")
+
+                (staging / name).write_bytes(content)
+
+            except (OSError, ValueError, HTTPException) as error:
+                raise OSError(f"Could not download {name}: {error}") from error
+
+        # Invalidate before replacement so an interrupted reset cannot leave a
+        # default player.cfg marked as already configured.
+        if "player.cfg" in names:
+            get_setup_marker_path(config_path).unlink(missing_ok=True)
+
+        for name in names:
+            (staging / name).replace(directory / name)
+            print(f"Recovered {directory / name}")
 
 
 def extract_inline_comment(line):
@@ -153,14 +242,45 @@ def mark_setup_complete(config_path):
     get_setup_marker_path(config_path).write_text("Configured by wizard.py\n", encoding="utf-8")
 
 
-def main():
+def main(argv=None):
     """Coordinate setup and report success, cancellation or failure to the user."""
-    print("Welcome to the vkQuake Initial Setup Wizard!")
-    print("--------------------------------------------")
+    parser = argparse.ArgumentParser(description=__doc__)
+
+    modes = parser.add_mutually_exclusive_group()
+
+    modes.add_argument("--check", action="store_true",
+                       help="Check only: exit 0 if ready, 2 if setup is needed, 1 on failure.")
+
+    modes.add_argument("--auto", action="store_true",
+                       help="Recover missing files and ask for player settings only if needed.")
+
+    args = parser.parse_args(argv)
 
     config_path = get_player_cfg_path()
 
     try:
+        directory_exists, missing = inspect_configs(config_path)
+        configured = path_exists_as(get_setup_marker_path(config_path), stat.S_ISREG)
+
+        if args.check:
+            return NEEDS_SETUP if missing or not configured else 0
+
+        if args.auto and not missing and configured:
+            return 0
+
+        print("Welcome to the vkQuake Initial Setup Wizard!")
+        print("--------------------------------------------")
+
+        if missing:
+            names = CONFIG_FILES if directory_exists and prompt_reset(missing) else missing
+            recover_configs(config_path, names)
+
+            if "player.cfg" in names:
+                configured = False
+
+        if args.auto and configured:
+            return 0
+
         lines = load_config_lines(config_path)
 
         name, sensitivity = prompt_user_settings()
@@ -168,6 +288,7 @@ def main():
         updates = {
             "name": name,
             "_cl_name": name,
+            "hostname": f"{name} SV",
             "sensitivity": sensitivity
         }
 
@@ -177,11 +298,13 @@ def main():
         mark_setup_complete(config_path)
 
     except (OSError, ValueError) as error:
-        print(f"Error updating {config_path}: {error}", file=sys.stderr)
+        print(f"Error preparing {config_path.parent}: {error}", file=sys.stderr)
 
         return 1
+
     except (EOFError, KeyboardInterrupt):
-        print("\nSetup cancelled; configuration was not saved.", file=sys.stderr)
+        print("\nSetup cancelled; player settings were not saved. "
+              "Any configuration files already recovered remain in place.", file=sys.stderr)
 
         return 1
 
