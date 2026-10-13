@@ -32,7 +32,7 @@ synthetic game data, preservation of saves/configuration, retries, cleanup,
 platform paths, archive extraction, engine selection, download handling, and
 SteamCMD output capture through the runner's native PTY or Windows pipes.
 The ezQuake and vkQuake wizard checks cover first-run state and configuration
-recovery. vkQuake's wizard is integrated into its standalone `launcher.py`;
+recovery. Both wizards are integrated into their standalone `launcher.py`;
 tests also cover `--setup-only` and running setup through a terminal.
 On Linux, launcher tests verify argument forwarding and failure handling;
 ezQuake checks that the engine receives its NVIDIA/OpenGL settings.
