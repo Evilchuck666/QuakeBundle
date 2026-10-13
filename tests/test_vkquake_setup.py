@@ -161,7 +161,11 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / "wizard-runs").read_text().splitlines(), ["run", "run"])
         self.assertEqual(json.loads((self.root / "engine.json").read_text()), [
-            "-basedir", str(self.root), "-userdir", str(self.root), "+exec", "configs/autoexec.cfg"
+            "-basedir",
+            str(self.root),
+            "-userdir",
+            str(self.root),
+            "+exec", "configs/autoexec.cfg"
         ])
         self.assertEqual(self.launch("-game", "a mod").returncode, 0)
         self.assertEqual(
