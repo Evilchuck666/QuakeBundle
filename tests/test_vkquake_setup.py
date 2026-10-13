@@ -25,20 +25,18 @@ wizard = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(wizard)
 
 
-class WizardTests(unittest.TestCase):
-    """Verify wizard settings, failure handling, and installed paths."""
-
-    # pylint: disable=too-many-public-methods
+class WizardTestCase(unittest.TestCase):
+    """Share an isolated installation and offline downloads between wizard tests."""
 
     def setUp(self):
         """Create an isolated player config and capture wizard output."""
-        temporary = tempfile.TemporaryDirectory(prefix="vkquake setup ")
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
-        self.config = self.root / "id1" / "configs" / "player.cfg"
-        shutil.copytree(CONFIGS, self.config.parent)
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
+        self.root = Path(self.stack.enter_context(
+            tempfile.TemporaryDirectory(prefix="vkquake setup ")
+        ))
+        self.config = self.root / "id1" / "configs" / "player.cfg"
+        shutil.copytree(CONFIGS, self.config.parent)
         self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
         self.stderr = self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
         self.get_player_cfg_path = wizard.get_player_cfg_path
@@ -61,10 +59,15 @@ class WizardTests(unittest.TestCase):
         return dict(line.split(maxsplit=1) for line in self.config.read_text().splitlines()
                     if line.strip() and not line.startswith("//"))
 
+
+class WizardSettingsTests(WizardTestCase):
+    """Verify player settings, installed paths and saving or cancelling edits."""
+
     def test_player_settings_update_template_and_record_success(self):
         """Save entered settings and mark setup complete."""
         expected = self.settings()
-        expected.update(name='"Ranger"', _cl_name='"Ranger"', sensitivity='"2.5"')
+        expected.update(name='"Ranger"', _cl_name='"Ranger"',
+                        hostname='"Ranger SV"', sensitivity='"2.5"')
         self.assertEqual(self.run_wizard(["Ranger", "2.5"]), 0)
         self.assertEqual(self.settings(), expected)
         self.assertTrue(wizard.get_setup_marker_path(self.config).is_file())
@@ -72,7 +75,8 @@ class WizardTests(unittest.TestCase):
     def test_default_settings_do_not_add_video_overrides(self):
         """Apply default player settings without adding video overrides."""
         expected = self.settings()
-        expected.update(name='"Player"', _cl_name='"Player"', sensitivity='"3.0"')
+        expected.update(name='"Player"', _cl_name='"Player"',
+                        hostname='"Player SV"', sensitivity='"3.0"')
         self.assertEqual(self.run_wizard(["", ""]), 0)
         self.assertEqual(self.settings(), expected)
 
@@ -97,6 +101,25 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(self.run_wizard([EOFError()]), 1)
         self.assertEqual(self.config.read_bytes(), before)
         self.assertFalse(wizard.get_setup_marker_path(self.config).exists())
+
+    def test_failed_save_preserves_existing_config(self):
+        """Preserve the config and remove temporary files after a failed save."""
+        before = self.config.read_bytes()
+        with patch.object(Path, "replace", side_effect=OSError("read-only")):
+            self.assertEqual(self.run_wizard(["Ranger", "3"]), 1)
+        self.assertEqual(self.config.read_bytes(), before)
+        self.assertFalse(wizard.get_setup_marker_path(self.config).exists())
+        self.assertFalse(self.config.with_suffix(".cfg.tmp").exists())
+
+    def test_installed_path_is_independent_of_working_directory(self):
+        """Resolve the config relative to the installed wizard script."""
+        with patch.object(wizard, "__file__", str(self.root / "wizard.py")):
+            path = self.get_player_cfg_path()
+        self.assertEqual(path, self.config)
+
+
+class WizardRecoveryTests(WizardTestCase):
+    """Verify validation, missing-file recovery, resets and download failures."""
 
     def test_deleted_directory_recovers_before_player_prompts(self):
         """Recreate the directory without a reset question, then configure it."""
@@ -256,21 +279,6 @@ class WizardTests(unittest.TestCase):
         self.assertIn("already recovered remain", self.stderr.getvalue())
         self.assertEqual(self.run_wizard(["Ranger", "3"], "--auto"), 0)
 
-    def test_failed_save_preserves_existing_config(self):
-        """Preserve the config and remove temporary files after a failed save."""
-        before = self.config.read_bytes()
-        with patch.object(Path, "replace", side_effect=OSError("read-only")):
-            self.assertEqual(self.run_wizard(["Ranger", "3"]), 1)
-        self.assertEqual(self.config.read_bytes(), before)
-        self.assertFalse(wizard.get_setup_marker_path(self.config).exists())
-        self.assertFalse(self.config.with_suffix(".cfg.tmp").exists())
-
-    def test_installed_path_is_independent_of_working_directory(self):
-        """Resolve the config relative to the installed wizard script."""
-        with patch.object(wizard, "__file__", str(self.root / "wizard.py")):
-            path = self.get_player_cfg_path()
-        self.assertEqual(path, self.config)
-
 
 @unittest.skipUnless(sys.platform.startswith("linux"), "Linux Bash launcher")
 class LauncherTests(unittest.TestCase):
@@ -278,9 +286,11 @@ class LauncherTests(unittest.TestCase):
 
     def setUp(self):
         """Create an installation with the real wizard and offline downloads."""
-        temporary = tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.root = Path(stack.enter_context(
+            tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
+        ))
         shutil.copyfile(SCRIPTS / "vkQuake.sh", self.root / "vkQuake.sh")
         self.configs = self.root / "id1" / "configs"
         shutil.copytree(CONFIGS, self.configs)

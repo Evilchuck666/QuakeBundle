@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 import unittest
 import zipfile
-from contextlib import redirect_stdout
+from contextlib import ExitStack, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -37,9 +37,9 @@ class SteamcmdInstallationTests(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary workspace for each test."""
-        temporary = tempfile.TemporaryDirectory(prefix="quake steamcmd ")
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake steamcmd ")))
 
     def test_installs_platform_archives_and_reuses_existing_executable(self):
         """Install a platform archive once and reuse the extracted executable."""
@@ -148,12 +148,12 @@ class CapturedProcessTests(unittest.TestCase):
 
     def setUp(self):
         """Create a temporary directory and patch the SteamCMD install path."""
-        temporary = tempfile.TemporaryDirectory(prefix="quake capture ")
-        self.addCleanup(temporary.cleanup)
-        self.directory = Path(temporary.name)
-        directory_patch = patch.object(steamcmd, "STEAMCMD_DIR", self.directory)
-        directory_patch.start()
-        self.addCleanup(directory_patch.stop)
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        self.directory = Path(stack.enter_context(
+            tempfile.TemporaryDirectory(prefix="quake capture ")
+        ))
+        stack.enter_context(patch.object(steamcmd, "STEAMCMD_DIR", self.directory))
 
     def test_native_capture_combines_streams_strips_ansi_and_keeps_tail(self):
         """Capture stdout/stderr, strip ANSI codes, and retain the tail."""

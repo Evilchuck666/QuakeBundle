@@ -163,21 +163,15 @@ class VkQuakeInstallTests(unittest.TestCase):
 
     def setUp(self):
         """Create a fresh temporary install root for each test."""
-        temporary = tempfile.TemporaryDirectory()
-
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory()))
         self.install_dir = self.root / "game files" / "singleplayer"
-
-        patcher = mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.install_dir)
-        patcher.start()
-
-        self.addCleanup(patcher.stop)
+        stack.enter_context(
+            mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.install_dir)
+        )
         self.output = io.StringIO()
-
-        self._stdout_redirect = contextlib.ExitStack()
-        self._stdout_redirect.enter_context(contextlib.redirect_stdout(self.output))
-        self.addCleanup(self._stdout_redirect.close)
+        stack.enter_context(contextlib.redirect_stdout(self.output))
 
     def test_appimage_replaces_previous_version_and_is_executable(self):
         """Verify AppImage updates replace the prior binary and keep it executable."""

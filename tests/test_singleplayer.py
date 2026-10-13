@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,20 +64,87 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("invalid int value", result.stderr)
 
 
+class ImportCompatibilityTests(unittest.TestCase):
+    """Keep the single-file API usable by programs embedding the installer."""
+
+    def setUp(self):
+        """Copy the entry point and its package away from the checkout."""
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        source = Path(singleplayer.__file__).resolve()
+        self.script = self.root / source.name
+        shutil.copyfile(source, self.script)
+        shutil.copytree(source.parent / "quakebundle", self.root / "quakebundle",
+                        ignore=shutil.ignore_patterns("__pycache__"))
+        self.working_dir = self.root / "elsewhere"
+        self.working_dir.mkdir()
+
+    def run_import(self, body):
+        """Verify interpreter state and absence of bytecode in an isolated process."""
+        code = (
+            "import runpy, sys\n"
+            "from pathlib import Path\n"
+            "source = sys.argv[1]\n"
+            "before_path = sys.path[:]\n"
+            "before_bytecode = sys.dont_write_bytecode\n"
+            + body + "\n"
+            "assert sys.path == before_path\n"
+            "assert sys.dont_write_bytecode == before_bytecode\n"
+        )
+        env = dict(os.environ, PYTHONPATH="")
+        env.pop("PYTHONDONTWRITEBYTECODE", None)
+        result = subprocess.run(
+            [sys.executable, "-c", code, str(self.script)],
+            cwd=self.working_dir, env=env, capture_output=True, text=True,
+            timeout=30, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(list(self.root.rglob("__pycache__")), [])
+
+    def test_runpy_and_exec_preserve_public_api_from_another_directory(self):
+        """Expose every compatibility export without depending on the caller's cwd."""
+        for body in (
+            "namespace = runpy.run_path(source)",
+            "namespace = {'__file__': source, '__name__': 'embedded_installer'}\n"
+            "exec(compile(Path(source).read_text(encoding='utf-8'), source, 'exec'), namespace)",
+        ):
+            with self.subTest(body=body):
+                self.run_import(
+                    body + "\n"
+                    f"assert namespace['__all__'] == {singleplayer.__all__!r}\n"
+                    "assert all(name in namespace for name in namespace['__all__'])\n"
+                    "assert callable(namespace['install_vkquake'])\n"
+                    "assert namespace['APP_ID'] == 2310\n"
+                )
+
+    def test_failed_import_restores_interpreter_state(self):
+        """An import failure propagates without leaking temporary interpreter changes."""
+        (self.root / "quakebundle" / "config.py").write_text(
+            "raise ImportError('synthetic dependency failure')\n", encoding="utf-8"
+        )
+        self.run_import(
+            "try:\n"
+            "    runpy.run_path(source)\n"
+            "except ImportError as error:\n"
+            "    assert str(error) == 'synthetic dependency failure'\n"
+            "else:\n"
+            "    raise AssertionError('Expected dependency failure')\n"
+        )
+
+
 class InstallerTests(unittest.TestCase):
     """Exercise the Quake single-player installation workflow."""
 
     def setUp(self):
         """Create isolated game-install directories for each test."""
-        temporary = tempfile.TemporaryDirectory(prefix="quake install ")
-        self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake install ")))
         self.download = self.root / "download"
         self.rerelease = self.download / "rerelease"
         self.install = self.root / "singleplayer"
         self.steam = self.root / "steamcmd"
-        stack = contextlib.ExitStack()
-        self.addCleanup(stack.close)
         for name, value in {
             "DOWNLOAD_DIR": self.download,
             "RERELEASE_DIR": self.rerelease,

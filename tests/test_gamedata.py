@@ -17,11 +17,10 @@ class DownloadProgressTests(unittest.TestCase):
 
     def setUp(self):
         """Set up a temporary download directory and capture stdout."""
-        temporary = tempfile.TemporaryDirectory(prefix="quake data ")
-        self.addCleanup(temporary.cleanup)
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", Path(temporary.name)))
+        directory = stack.enter_context(tempfile.TemporaryDirectory(prefix="quake data "))
+        stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", Path(directory)))
         self.output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
 
     def test_progress_starts_lazily_and_tracks_state_and_size_changes(self):

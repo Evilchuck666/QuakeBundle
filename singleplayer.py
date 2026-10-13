@@ -38,70 +38,70 @@ import os
 import sys
 from pathlib import Path
 
-# A single script never wrote __pycache__; keep it that way for the package.
-sys.dont_write_bytecode = True
-# The package sits next to this file. "python3 singleplayer.py" already puts
-# this directory on sys.path, but runpy, exec() or importing from elsewhere
-# don't, and with a single file they used to work.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Keep direct execution, runpy and exec() working from other directories without
+# leaving changes to the caller's import path or bytecode settings.
+ORIGINAL_IMPORT_PATH = sys.path[:]
+ORIGINAL_BYTECODE_SETTING = sys.dont_write_bytecode
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    sys.dont_write_bytecode = True
 
-# main() uses some of these. The rest used to be defined in this file, and are
-# imported so that code using singleplayer.<name> (e.g.
-# singleplayer.install_vkquake()) keeps working.
-# The sys.path tweak above is required so the package can be imported when this
-# file is executed directly; keep the compatibility imports in-place even though
-# pylint marks them as misplaced/unused.
-from quakebundle.config import (  # pylint: disable=wrong-import-position,unused-import
-    APP_ID,
-    BASE_DIR,
-    DOWNLOAD_CHUNK_SIZE,
-    DOWNLOAD_DIR,
-    EXPECTED_FILES,
-    INSTALL_SINGLE_PLAYER_DIR,
-    RERELEASE_DIR,
-    STEAMCMD_DIR,
-    STEAMCMD_URLS,
-    TAIL_LINES,
-    USER_AGENT,
-    VKQUAKE_MAC_RELEASES_URL,
-    VKQUAKE_RELEASE_URL,
-    user_data_dir,
-)
-from quakebundle.console import (  # pylint: disable=wrong-import-position,unused-import
-    byte_bar,
-    mb,
-    progress_bar,
-    step,
-)
-from quakebundle.gamedata import (  # pylint: disable=wrong-import-position,unused-import
-    clean_up,
-    download_quake,
-    install_game_data,
-)
-from quakebundle.net import (  # pylint: disable=wrong-import-position,unused-import
-    curl_get,
-    fetch,
-    fetch_json,
-    open_url,
-)
-from quakebundle.steamcmd import (  # pylint: disable=wrong-import-position,unused-import
-    ANSI_RE,
-    PROGRESS_RE,
-    SELF_UPDATE_RE,
-    SUCCESS_RE,
-    check_rosetta,
-    install_steamcmd,
-    login,
-    print_tail,
-    run_captured,
-    steamcmd_executable,
-    update_steamcmd,
-)
-from quakebundle.vkquake import (  # pylint: disable=wrong-import-position
-    install_vkquake,
-    install_vkquake_mac,
-    vkquake_release,
-)
+    # Re-export the original single-file API for existing callers.
+    from quakebundle.config import (
+        APP_ID,
+        BASE_DIR,
+        DOWNLOAD_CHUNK_SIZE,
+        DOWNLOAD_DIR,
+        EXPECTED_FILES,
+        INSTALL_SINGLE_PLAYER_DIR,
+        RERELEASE_DIR,
+        STEAMCMD_DIR,
+        STEAMCMD_URLS,
+        TAIL_LINES,
+        USER_AGENT,
+        VKQUAKE_MAC_RELEASES_URL,
+        VKQUAKE_RELEASE_URL,
+        user_data_dir,
+    )
+    from quakebundle.console import (
+        byte_bar,
+        mb,
+        progress_bar,
+        step,
+    )
+    from quakebundle.gamedata import (
+        clean_up,
+        download_quake,
+        install_game_data,
+    )
+    from quakebundle.net import (
+        curl_get,
+        fetch,
+        fetch_json,
+        open_url,
+    )
+    from quakebundle.steamcmd import (
+        ANSI_RE,
+        PROGRESS_RE,
+        SELF_UPDATE_RE,
+        SUCCESS_RE,
+        check_rosetta,
+        install_steamcmd,
+        login,
+        print_tail,
+        run_captured,
+        steamcmd_executable,
+        update_steamcmd,
+    )
+    from quakebundle.vkquake import (
+        install_vkquake,
+        install_vkquake_mac,
+        vkquake_release,
+    )
+finally:
+    sys.path[:] = ORIGINAL_IMPORT_PATH
+    sys.dont_write_bytecode = ORIGINAL_BYTECODE_SETTING
+    del ORIGINAL_IMPORT_PATH, ORIGINAL_BYTECODE_SETTING
 
 __all__ = [
     "ANSI_RE",
