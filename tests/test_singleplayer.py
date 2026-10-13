@@ -135,6 +135,68 @@ class ImportCompatibilityTests(unittest.TestCase):
         )
 
 
+class VkQuakeAssetTests(unittest.TestCase):
+    """Install support files without network access or changes to user data."""
+
+    def setUp(self):
+        """Use local source files and a fresh installation directory."""
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake assets ")))
+        self.install = self.root / "singleplayer"
+        stack.enter_context(patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+
+    def test_downloads_assets_into_install_directory(self):
+        """Use direct GitHub URLs and install complete, executable scripts."""
+        sources = Path(singleplayer.__file__).resolve().parent / "assets"
+        expected = {
+            "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/" + relative:
+            sources / relative
+            for relative in (
+                "scripts/vkQuake/launcher.sh", "scripts/vkQuake/wizard.py", "icons/quake.svg"
+            )
+        }
+        real_fetch = singleplayer.fetch
+
+        def local_fetch(url, destination):
+            real_fetch(expected[url].as_uri(), destination)
+
+        with patch.object(singleplayer, "fetch", side_effect=local_fetch) as download:
+            singleplayer.install_vkquake_assets()
+
+        self.assertEqual([args.args[0] for args in download.call_args_list], list(expected))
+        self.assertEqual(sorted(p.name for p in self.install.iterdir()),
+                         ["launcher.sh", "quake.svg", "wizard.py"])
+        for source in expected.values():
+            installed = self.install / source.name
+            self.assertEqual(installed.read_bytes(), source.read_bytes())
+            if os.name != "nt":
+                self.assertEqual(installed.stat().st_mode & 0o777,
+                                 0o644 if source.suffix == ".svg" else 0o755)
+
+    def test_failed_download_preserves_existing_assets_and_removes_temporary_files(self):
+        """A partial download must not overwrite an existing installation."""
+        self.install.mkdir()
+        names = ("launcher.sh", "wizard.py", "quake.svg")
+        for name in names:
+            (self.install / name).write_bytes(b"previous version")
+
+        def failing_fetch(url, destination):
+            del url
+            destination.write_bytes(b"new content")
+            if destination.name == "wizard.py":
+                raise OSError("download interrupted")
+
+        with patch.object(singleplayer, "fetch", side_effect=failing_fetch):
+            with self.assertRaisesRegex(OSError, "download interrupted"):
+                singleplayer.install_vkquake_assets()
+
+        self.assertEqual(sorted(p.name for p in self.install.iterdir()), sorted(names))
+        for name in names:
+            self.assertEqual((self.install / name).read_bytes(), b"previous version")
+
+
 class InstallerTests(unittest.TestCase):
     """Exercise the Quake single-player installation workflow."""
 
@@ -183,7 +245,7 @@ class InstallerTests(unittest.TestCase):
             calls = Mock()
             for name in (
                 "check_rosetta", "install_steamcmd", "update_steamcmd", "login",
-                "download_quake", "install_vkquake",
+                "download_quake", "install_vkquake", "install_vkquake_assets",
             ):
                 mock = stack.enter_context(patch.object(singleplayer, name))
                 calls.attach_mock(mock, name)
@@ -210,6 +272,7 @@ class InstallerTests(unittest.TestCase):
                 call.check_rosetta(), call.install_steamcmd(),
                 call.update_steamcmd(exe), call.login(exe, "argument-user"),
                 call.download_quake(exe, "argument-user", 2), call.install_vkquake(),
+                call.install_vkquake_assets(),
             ])
             output.reconfigure.assert_called_once_with(errors="replace")
         for relative in gamedata.EXPECTED_FILES:
@@ -241,6 +304,15 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue((self.rerelease / "id1/pak0.pak").is_file())
         self.assertTrue(self.steam.is_dir())
         self.assertFalse(self.install.exists())
+
+    def test_engine_failure_stops_before_asset_downloads(self):
+        """Only download support files after vkQuake installs successfully."""
+        self.make_download()
+        with self.main_dependencies([]) as (calls, _):
+            calls.install_vkquake.side_effect = SystemExit("engine download failed")
+            with self.assertRaisesRegex(SystemExit, "engine download failed"):
+                singleplayer.main()
+            calls.install_vkquake_assets.assert_not_called()
 
     def test_download_failure_stops_before_installation_and_cleanup(self):
         """A download failure should stop before any install or cleanup phase runs."""
