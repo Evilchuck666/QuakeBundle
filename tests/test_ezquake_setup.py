@@ -94,14 +94,14 @@ class WizardTests(unittest.TestCase):
         })
         self.download.assert_not_called()
 
-    def test_default_short_name_uses_player_name_and_team_is_optional(self):
-        """Accept defaults and derive the hostname from the full player name."""
+    def test_default_short_name_uses_player_name_with_required_team(self):
+        """Accept player defaults while supplying the required team name."""
         for answer, name in (("", "Player"), ("  Ranger  ", "Ranger")):
             with self.subTest(name=name):
-                with patch("builtins.input", side_effect=[answer, "", "", ""]):
+                with patch("builtins.input", side_effect=[answer, "", "Red", ""]):
                     self.assertEqual(wizard.main([]), 0)
                 self.assertEqual(self.settings(), {
-                    "name": f'"{name}"', "cl_fakename": f'"{name}"', "team": '""',
+                    "name": f'"{name}"', "cl_fakename": f'"{name}"', "team": '"Red"',
                     "hostname": f'"{name} SV"', "sensitivity": '"3.0"',
                 })
 
@@ -110,7 +110,7 @@ class WizardTests(unittest.TestCase):
         answers = [
             'bad"name', "bad\nname", "bad\rname", "   ", "  Ranger  ",
             'bad"short', "bad\nshort", "bad\rshort", "   ", "  Rng  ",
-            'bad"team', "bad\nteam", "bad\rteam", "  Red  ", "3",
+            'bad"team', "bad\nteam", "bad\rteam", "", "   ", "  Red  ", "3",
         ]
         with patch("builtins.input", side_effect=answers):
             self.assertEqual(wizard.main([]), 0)
@@ -121,10 +121,11 @@ class WizardTests(unittest.TestCase):
 
     def test_sensitivity_reprompts_for_invalid_or_nonfinite_numbers(self):
         """Only save a positive, finite sensitivity, as in the vkQuake wizard."""
-        answers = ["Ranger", "Rng", "", "abc", "nan", "inf", "-inf", "1e309",
+        answers = ["Ranger", "Rng", "Red", "abc", "nan", "inf", "-inf", "1e309",
                    "0", "-2", "2.5"]
-        with patch("builtins.input", side_effect=answers):
+        with patch("builtins.input", side_effect=answers) as prompt:
             self.assertEqual(wizard.main([]), 0)
+        self.assertEqual(prompt.call_count, len(answers))
         self.assertEqual(self.settings()["sensitivity"], '"2.5"')
 
     def test_comments_custom_settings_and_slashes_survive_rerun(self):
@@ -163,15 +164,17 @@ class WizardTests(unittest.TestCase):
     def test_deleted_directory_is_recovered_before_player_prompts(self):
         """Recover ezQuake templates before asking for the player's settings."""
         shutil.rmtree(self.configs)
+        answers = iter(["", "", "Red", ""])
 
         def answer(prompt):
             self.assertNotIn("Reset", prompt)
             self.assertTrue(all((self.configs / name).is_file() for name in wizard.CONFIG_FILES))
-            return ""
+            return next(answers)
 
         with patch("builtins.input", side_effect=answer) as prompt:
             self.assertEqual(wizard.main(["--auto"]), 0)
         self.assertEqual(prompt.call_count, 4)
+        self.assertEqual(self.settings()["team"], '"Red"')
         self.assertTrue(self.marker.is_file())
         self.assertEqual(self.download.call_count, 3)
         for call, name in zip(self.download.call_args_list, wizard.CONFIG_FILES):
