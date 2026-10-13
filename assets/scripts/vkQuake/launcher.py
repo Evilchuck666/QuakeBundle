@@ -119,10 +119,13 @@ Use -- to pass all remaining arguments directly to vkQuake.""")
         os.chdir(root)
         engine = str(root / "vkQuake.AppImage")
 
-        os.execv(engine, [
-            engine, "-basedir", str(root), "-userdir", str(root),
-            "+exec", "../id1/configs/autoexec.cfg", *game_args,
-        ])
+        os.execv(
+            engine,
+            [
+                engine, "-basedir", str(root), "-userdir", str(root),
+                "+exec", "../id1/configs/autoexec.cfg", *game_args,
+            ]
+        )
 
         return 0
     except OSError as error:
