@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Launch the Linux ezQuake AppImage after checking its initial setup.
+
+Install this script beside wizard.py and ezQuake-x86_64.AppImage.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def prepare_shared_autoexec(root):
+    """Pin the shared includes in existing installations without resetting settings."""
+    autoexec = root / "ezquake" / "configs" / "autoexec.cfg"
+    original = autoexec.read_bytes()
+    # ezQuake can load exec paths from the working directory (the install root).
+    # Preserve comments, quoting, line endings and custom autoexec commands.
+    updated = re.sub(
+        rb'(^[ \t]*(?i:exec)[ \t]+)("?)(configs/(?:game|player)\.cfg)\2(?=[ \t;\r\n]|$)',
+        rb'\1\2ezquake/\3\2', original, flags=re.MULTILINE,
+    )
+    if updated == original:
+        return
+
+    with tempfile.NamedTemporaryFile(dir=autoexec.parent, prefix=".launcher-autoexec-",
+                                     delete=False) as temporary:
+        staged = Path(temporary.name)
+        try:
+            temporary.write(updated)
+            temporary.close()
+            shutil.copymode(autoexec, staged)
+            staged.replace(autoexec)
+        finally:
+            staged.unlink(missing_ok=True)
+
+
+def main(argv=None):
+    """Handle launcher options, run setup if needed, then replace this process."""
+    arguments = iter(sys.argv[1:] if argv is None else argv)
+    run_wizard = False
+    game_args = []
+
+    for argument in arguments:
+        if argument == "--help":
+            print(f"Usage: {Path(__file__).name} [--help] [--wizard] [--mod NAME] "
+                  f"""[ezQuake arguments...]
+
+Options:
+  --help      Show this help message and exit.
+  --wizard    Run the setup wizard before launching ezQuake.
+  --mod NAME  Load a QuakeWorld mod folder beside qw (equivalent to -game NAME).
+
+Examples:
+  {Path(__file__).name} --mod fortress
+  {Path(__file__).name} +connect 127.0.0.1:27500
+
+Every mod uses ezquake/configs/autoexec.cfg and its shared game/player settings.
+
+All other arguments are passed to ezQuake.
+Use -- to pass all remaining arguments directly to ezQuake.""")
+            return 0
+
+        if argument == "--wizard":
+            run_wizard = True
+        elif argument == "--mod":
+            mod = next(arguments, "")
+            if not mod or mod.startswith(("-", "+")):
+                print("Error: --mod requires a mod folder name (for example: --mod fortress).",
+                      file=sys.stderr)
+                return 2
+            game_args.extend(["-game", mod])
+        elif argument == "--":
+            game_args.extend(arguments)
+            break
+        else:
+            game_args.append(argument)
+
+    root = Path(__file__).resolve().parent
+
+    # Preserve the Bash launcher's NVIDIA/OpenGL and SDL/X11 settings.
+    os.environ.update(
+        __GL_SYNC_TO_VBLANK="0",
+        __GL_MaxFramesAllowed="1",
+        SDL_MOUSE_RELATIVE_MODE_WARP="0",
+        SDL_MOUSE_RELATIVE_SCALING="0",
+        SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR="1",
+    )
+
+    wizard = [sys.executable, str(root / "wizard.py")]
+
+    try:
+        status = subprocess.run([*wizard, "--check"], check=False).returncode
+        if status not in (0, 2):
+            return status if status >= 0 else 128 - status
+
+        if status == 2 or run_wizard:
+            command = list(wizard)
+
+            if not run_wizard:
+                command.append("--auto")
+
+            print("Running Initial Setup Wizard...", flush=True)
+
+            if not (sys.stdin.isatty() and sys.stdout.isatty()):
+                xterm = shutil.which("xterm")
+                if xterm and os.environ.get("DISPLAY"):
+                    command = [xterm, "-T", "ezQuake Setup Wizard", "-e", *command]
+
+            status = subprocess.run(command, check=False).returncode
+            if status != 0:
+                return status if status >= 0 else 128 - status
+
+        prepare_shared_autoexec(root)
+
+        # Keep generated engine settings and saves inside this installation.
+        os.chdir(root)
+        engine = str(root / "ezQuake-x86_64.AppImage")
+
+        os.execv(engine, [
+            engine, "-basedir", str(root), "-nohome",
+            "+exec", "ezquake/configs/autoexec.cfg", *game_args,
+        ])
+
+        return 0
+    except OSError as error:
+        print(f"Error launching ezQuake: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
