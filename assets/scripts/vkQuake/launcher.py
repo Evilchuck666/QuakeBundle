@@ -425,7 +425,7 @@ Use -- to pass all remaining arguments directly to vkQuake.""")
             status = run_setup_wizard(automatic=not run_wizard)
 
         if status != 0:
-            return status if status >= 0 else 128 - status
+            return status if status >= 0 else 128 + abs(status)
 
         prepare_shared_autoexec(root)
 
