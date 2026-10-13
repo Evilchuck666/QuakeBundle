@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
-from quakebundle import config, vkquake
+from quake_installer import config, vkquake
 
 
 def release_asset(name):
@@ -25,7 +25,7 @@ class UserDataDirectoryTests(unittest.TestCase):
 
     def test_platform_paths_and_environment_overrides(self):
         """Verify the default user-data directory and environment overrides."""
-        home = Path(tempfile.gettempdir()) / "quakebundle-test-home"
+        home = Path(tempfile.gettempdir()) / "quake-installer-test-home"
         custom = home / "custom data"
         cases = [
             ("Windows", {}, home / "AppData" / "Local"),

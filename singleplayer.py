@@ -47,7 +47,7 @@ try:
     sys.dont_write_bytecode = True
 
     # Re-export the original single-file API for existing callers.
-    from quakebundle.config import (
+    from quake_installer.config import (
         APP_ID,
         BASE_DIR,
         DOWNLOAD_CHUNK_SIZE,
@@ -63,24 +63,24 @@ try:
         VKQUAKE_RELEASE_URL,
         user_data_dir,
     )
-    from quakebundle.console import (
+    from quake_installer.console import (
         byte_bar,
         mb,
         progress_bar,
         step,
     )
-    from quakebundle.gamedata import (
+    from quake_installer.gamedata import (
         clean_up,
         download_quake,
         install_game_data,
     )
-    from quakebundle.net import (
+    from quake_installer.net import (
         curl_get,
         fetch,
         fetch_json,
         open_url,
     )
-    from quakebundle.steamcmd import (
+    from quake_installer.steamcmd import (
         ANSI_RE,
         PROGRESS_RE,
         SELF_UPDATE_RE,
@@ -93,7 +93,7 @@ try:
         steamcmd_executable,
         update_steamcmd,
     )
-    from quakebundle.vkquake import (
+    from quake_installer.vkquake import (
         install_vkquake,
         install_vkquake_mac,
         vkquake_release,

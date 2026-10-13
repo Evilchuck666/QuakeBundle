@@ -1,5 +1,8 @@
 # Installer tests
 
+The installer entry point is `singleplayer.py`; its supporting modules live in
+the `quake_installer/` package alongside it.
+
 Run the same offline checks as GitHub Actions from the repository root:
 
 ```sh

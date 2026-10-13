@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from tqdm import tqdm
 
-from quakebundle import gamedata
+from quake_installer import gamedata
 
 
 class DownloadProgressTests(unittest.TestCase):

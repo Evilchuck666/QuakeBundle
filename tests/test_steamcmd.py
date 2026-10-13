@@ -13,7 +13,7 @@ from contextlib import ExitStack, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from quakebundle import steamcmd
+from quake_installer import steamcmd
 
 
 def steamcmd_archive(system, filename):

@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import Mock, call, patch
 
 import singleplayer
-from quakebundle import gamedata
+from quake_installer import gamedata
 
 
 class CommandLineTests(unittest.TestCase):
@@ -75,7 +75,7 @@ class ImportCompatibilityTests(unittest.TestCase):
         source = Path(singleplayer.__file__).resolve()
         self.script = self.root / source.name
         shutil.copyfile(source, self.script)
-        shutil.copytree(source.parent / "quakebundle", self.root / "quakebundle",
+        shutil.copytree(source.parent / "quake_installer", self.root / "quake_installer",
                         ignore=shutil.ignore_patterns("__pycache__"))
         self.working_dir = self.root / "elsewhere"
         self.working_dir.mkdir()
@@ -122,7 +122,7 @@ class ImportCompatibilityTests(unittest.TestCase):
 
     def test_failed_import_restores_interpreter_state(self):
         """An import failure propagates without leaking temporary interpreter changes."""
-        (self.root / "quakebundle" / "config.py").write_text(
+        (self.root / "quake_installer" / "config.py").write_text(
             "raise ImportError('synthetic dependency failure')\n", encoding="utf-8"
         )
         self.run_import(

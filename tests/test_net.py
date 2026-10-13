@@ -9,7 +9,7 @@ import urllib.error
 from pathlib import Path
 from unittest.mock import Mock, call, patch, sentinel
 
-from quakebundle import net
+from quake_installer import net
 
 
 class DownloadTests(unittest.TestCase):
