@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -284,6 +285,8 @@ class WizardRecoveryTests(WizardTestCase):
 class LauncherTests(unittest.TestCase):
     """Verify Linux launcher setup, argument handling, and failure paths."""
 
+    autoexec_path = "configs/autoexec.cfg"
+
     def setUp(self):
         """Create an installation with the real wizard and offline downloads."""
         stack = contextlib.ExitStack()
@@ -341,7 +344,7 @@ class LauncherTests(unittest.TestCase):
             str(self.root),
             "-userdir",
             str(self.root),
-            "+exec", "configs/autoexec.cfg"
+            "+exec", self.autoexec_path
         ])
         self.assertEqual(self.launch("-game", "a mod").returncode, 0)
         self.assertEqual(
@@ -429,6 +432,8 @@ class LauncherTests(unittest.TestCase):
 class PythonLauncherTests(LauncherTests):
     """Apply the Bash launcher's integration checks to its Python migration."""
 
+    autoexec_path = "../id1/configs/autoexec.cfg"
+
     def setUp(self):
         """Install the Python launcher beside the same wizard and fake engine."""
         super().setUp()
@@ -440,13 +445,81 @@ class PythonLauncherTests(LauncherTests):
                               cwd=self.bin, env=self.env, input=answers, text=True,
                               capture_output=True, timeout=15, check=False)
 
+    def test_mods_use_shared_autoexec_and_includes_before_starting_map(self):
+        """Mod configs cannot shadow the shared autoexec or its game/player files."""
+        self.marker.touch()
+        for mod in ("ctf", "dopa", "hipnotic", "id1", "mg1", "mg3", "rogue", "a mod"):
+            directory = self.root / mod
+            if mod != "id1":
+                (directory / "configs").mkdir(parents=True)
+                for name in ("autoexec.cfg", "game.cfg", "player.cfg"):
+                    (directory / "configs" / name).write_text("echo mod settings\n")
+
+            for flags in (("--mod", mod), ("-game", mod), ("--", "-game", mod)):
+                with self.subTest(mod=mod, flags=flags):
+                    result = self.launch(*flags, "+map", "start")
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    args = json.loads((self.root / "engine.json").read_text())
+                    self.assertEqual(args[-4:], ["-game", mod, "+map", "start"])
+                    self.assertLess(args.index("+exec"), args.index("+map"))
+                    # Quake resolves exec paths against the mod first, then id1.
+                    autoexec = directory / args[args.index("+exec") + 1]
+                    self.assertEqual(autoexec.resolve(), self.configs / "autoexec.cfg")
+                    includes = [shlex.split(line)[1] for line in autoexec.read_text().splitlines()
+                                if line.startswith("exec ")]
+                    self.assertEqual([(directory / path).resolve() for path in includes],
+                                     [self.configs / "game.cfg", self.configs / "player.cfg"])
+                    if mod != "id1":
+                        for name in ("autoexec.cfg", "game.cfg", "player.cfg"):
+                            self.assertEqual((directory / "configs" / name).read_text(),
+                                             "echo mod settings\n")
+        self.assertFalse((self.root / "wizard-runs").exists())
+
+    def test_existing_autoexec_includes_are_migrated_without_resetting_settings(self):
+        """Upgrade older configs once, retaining custom commands, comments and modes."""
+        self.marker.touch()
+        autoexec = self.configs / "autoexec.cfg"
+        original = (b'// exec configs/game.cfg\r\nvid_unlock\r\n'
+                    b'  exec "configs/game.cfg" // shared defaults\r\n'
+                    b'EXEC\tconfigs/player.cfg; sensitivity 7\r\n'
+                    b'bind F8 "exec configs/player.cfg"\r\nvid_restart\r\n')
+        expected = (b'// exec configs/game.cfg\r\nvid_unlock\r\n'
+                    b'  exec "../id1/configs/game.cfg" // shared defaults\r\n'
+                    b'EXEC\t../id1/configs/player.cfg; sensitivity 7\r\n'
+                    b'bind F8 "exec configs/player.cfg"\r\nvid_restart\r\n')
+        autoexec.write_bytes(original)
+        autoexec.chmod(0o640)
+        before = {name: (self.configs / name).read_bytes()
+                  for name in ("game.cfg", "player.cfg")}
+        result = self.launch("-game", "rogue")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(autoexec.read_bytes(), expected)
+        self.assertEqual(autoexec.stat().st_mode & 0o777, 0o640)
+        modified = autoexec.stat().st_mtime_ns
+        self.assertEqual(self.launch().returncode, 0)
+        self.assertEqual(autoexec.stat().st_mtime_ns, modified)
+        self.assertEqual({name: (self.configs / name).read_bytes() for name in before}, before)
+        self.assertEqual(list(self.configs.glob(".launcher-autoexec-*")), [])
+        self.assertFalse((self.root / "wizard-runs").exists())
+
+    def test_mod_requires_a_value_before_setup_or_launch(self):
+        """A missing mod value must not consume another option or start setup."""
+        for args in (("--mod",), ("--mod", ""), ("--mod", "--wizard"), ("--mod", "+map")):
+            with self.subTest(args=args):
+                result = self.launch(*args)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("--mod requires a mod folder name", result.stderr)
+                self.assertFalse((self.root / "wizard-runs").exists())
+                self.assertFalse((self.root / "engine.json").exists())
+
     def test_separator_forwards_launcher_options_and_shell_characters_literally(self):
         """Arguments after -- belong to the engine and are never shell code."""
         self.marker.touch()
-        arguments = ["--help", "--wizard", "a mod", "$(touch injected)", "'quoted'"]
+        arguments = ["--help", "--wizard", "--mod", "a mod", "$(touch injected)", "'quoted'"]
         result = self.launch("--", *arguments)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads((self.root / "engine.json").read_text())[-5:], arguments)
+        self.assertEqual(json.loads((self.root / "engine.json").read_text())[-len(arguments):],
+                         arguments)
         self.assertFalse((self.root / "wizard-runs").exists())
         self.assertFalse((self.root / "injected").exists())
 
@@ -476,3 +549,5 @@ class PythonLauncherTests(LauncherTests):
         result = self.launch("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("launcher.py", result.stdout)
+        self.assertIn("--mod NAME", result.stdout)
+        self.assertIn("id1/configs/autoexec.cfg", result.stdout)
