@@ -154,7 +154,7 @@ class VkQuakeAssetTests(unittest.TestCase):
         for system, launcher, icon in (
             ("Linux", "launcher.py", "quake.svg"),
             ("Windows", "launcher.exe", "quake.ico"),
-            ("Darwin", "launcher.py", "ezquake.png"),
+            ("Darwin", "launcher.py", "quake.png"),
         ):
             with self.subTest(system=system):
                 self.system.return_value = system
