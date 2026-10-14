@@ -145,16 +145,30 @@ class VkQuakeAssetTests(unittest.TestCase):
         self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake assets ")))
         self.install = self.root / "singleplayer"
         stack.enter_context(patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install))
+        self.system = stack.enter_context(patch.object(singleplayer.platform, "system"))
+        self.system.return_value = "Linux"
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
 
     def test_downloads_assets_into_install_directory(self):
-        """Use direct GitHub URLs and install complete, executable scripts."""
+        """Install the platform's launcher and icon from direct GitHub URLs."""
+        for system, launcher, icon in (
+            ("Linux", "launcher.py", "quake.svg"),
+            ("Windows", "launcher.exe", "ezquake.ico"),
+            ("Darwin", "launcher.py", "ezquake.png"),
+        ):
+            with self.subTest(system=system):
+                self.system.return_value = system
+                with patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install / system):
+                    self.check_downloaded_assets(self.install / system, launcher, icon)
+
+    def check_downloaded_assets(self, install, launcher, icon):
+        """Verify downloaded bytes, filenames and launcher/icon permissions."""
         sources = Path(singleplayer.__file__).resolve().parent / "assets"
         expected = {
             "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/" + relative:
             sources / relative
             for relative in (
-                "scripts/vkQuake/launcher.py", "icons/quake.svg"
+                f"scripts/vkQuake/{launcher}", f"icons/{icon}"
             )
         }
         real_fetch = singleplayer.fetch
@@ -166,14 +180,14 @@ class VkQuakeAssetTests(unittest.TestCase):
             singleplayer.install_vkquake_assets()
 
         self.assertEqual([args.args[0] for args in download.call_args_list], list(expected))
-        self.assertEqual(sorted(p.name for p in self.install.iterdir()),
-                         ["launcher.py", "quake.svg"])
+        self.assertEqual(sorted(p.name for p in install.iterdir()),
+                         sorted([launcher, icon]))
         for source in expected.values():
-            installed = self.install / source.name
+            installed = install / source.name
             self.assertEqual(installed.read_bytes(), source.read_bytes())
             if os.name != "nt":
                 self.assertEqual(installed.stat().st_mode & 0o777,
-                                 0o644 if source.suffix == ".svg" else 0o755)
+                                 0o755 if source.name == launcher else 0o644)
 
     def test_failed_download_preserves_existing_assets_and_removes_temporary_files(self):
         """A partial download must not overwrite an existing installation."""
