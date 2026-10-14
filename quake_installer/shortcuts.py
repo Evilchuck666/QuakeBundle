@@ -141,59 +141,73 @@ function run(argv) {
 '''
 
 
+def build_macos_workflow(root, python):
+    """Describe the Automator action that runs the installed Python launcher."""
+    script = "cd " + shlex.quote(str(root)) + "\nexec " + shlex.join(
+        [str(python), str(root / "launcher.py")]
+    ) + "\n"
+    return {
+        "AMDocumentVersion": "2",
+        "actions": [{"action": {
+            "ActionBundlePath": "/System/Library/Automator/Run Shell Script.action",
+            "ActionName": "Run Shell Script",
+            "BundleIdentifier": "com.apple.RunShellScript",
+            "ActionParameters": {
+                "shell": "/bin/sh", "source": script,
+                "inputMethod": 0, "CheckedForUserDefaultShell": True,
+            },
+        }}],
+        "connectors": [],
+        "workflowMetaData": {"workflowTypeIdentifier": "com.apple.Automator.application"},
+    }
+
+
+def build_macos_application(staged, root, python):
+    """Write the Automator executable, application metadata and workflow."""
+    contents = staged / "Contents"
+    executable = contents / "MacOS/Automator Application Stub"
+    executable.parent.mkdir(parents=True)
+    shutil.copyfile(AUTOMATOR_STUB, executable)
+    executable.chmod(0o755)
+    info = {
+        "CFBundleExecutable": executable.name,
+        "CFBundleIdentifier": "com.quakebundle.singleplayer",
+        "CFBundleName": SHORTCUT_NAME,
+        "CFBundleDisplayName": SHORTCUT_NAME,
+        "CFBundlePackageType": "APPL",
+        "CFBundleVersion": "1",
+        "LSUIElement": True,
+    }
+    for name, data in (("Info.plist", info),
+                       ("document.wflow", build_macos_workflow(root, python))):
+        with (contents / name).open("wb") as output:
+            plistlib.dump(data, output)
+
+
+def publish_macos_application(staged, destination):
+    """Replace the application, restoring the previous version if publication fails."""
+    # A nonempty .app directory cannot be replaced with a single rename.
+    backup = staged.parent / "previous.app"
+    had_previous = destination.exists() or destination.is_symlink()
+    if had_previous:
+        destination.rename(backup)
+    try:
+        staged.rename(destination)
+    except OSError:
+        if had_previous:
+            backup.rename(destination)
+        raise
+
+
 def create_macos_shortcut(root, python):
-    """Build an Automator application and apply its PNG icon using AppKit."""
+    """Prepare, validate and publish an Automator application with its PNG icon."""
     directory = Path.home() / "Applications"
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / (SHORTCUT_NAME + ".app")
     with tempfile.TemporaryDirectory(prefix=".vkquake-shortcut-", dir=directory) as tmp:
         staged = Path(tmp) / destination.name
-        contents = staged / "Contents"
-        executable = contents / "MacOS/Automator Application Stub"
-        executable.parent.mkdir(parents=True)
-        shutil.copyfile(AUTOMATOR_STUB, executable)
-        executable.chmod(0o755)
-        info = {
-            "CFBundleExecutable": executable.name,
-            "CFBundleIdentifier": "com.quakebundle.singleplayer",
-            "CFBundleName": SHORTCUT_NAME,
-            "CFBundleDisplayName": SHORTCUT_NAME,
-            "CFBundlePackageType": "APPL",
-            "CFBundleVersion": "1",
-            "LSUIElement": True,
-        }
-        script = "cd " + shlex.quote(str(root)) + "\nexec " + shlex.join(
-            [str(python), str(root / "launcher.py")]
-        ) + "\n"
-        workflow = {
-            "AMDocumentVersion": "2",
-            "actions": [{"action": {
-                "ActionBundlePath": "/System/Library/Automator/Run Shell Script.action",
-                "ActionName": "Run Shell Script",
-                "BundleIdentifier": "com.apple.RunShellScript",
-                "ActionParameters": {
-                    "shell": "/bin/sh", "source": script,
-                    "inputMethod": 0, "CheckedForUserDefaultShell": True,
-                },
-            }}],
-            "connectors": [],
-            "workflowMetaData": {"workflowTypeIdentifier": "com.apple.Automator.application"},
-        }
-        for name, data in (("Info.plist", info), ("document.wflow", workflow)):
-            with (contents / name).open("wb") as output:
-                plistlib.dump(data, output)
+        build_macos_application(staged, root, python)
         run_native(["/usr/bin/osascript", "-l", "JavaScript", "-e", MACOS_VALIDATE_AND_ICON,
                     str(staged), str(root / "quake.png")])
-
-        # A nonempty .app directory cannot be replaced with a single rename.
-        backup = Path(tmp) / "previous.app"
-        had_previous = destination.exists() or destination.is_symlink()
-        if had_previous:
-            destination.rename(backup)
-        try:
-            staged.rename(destination)
-        except OSError:
-            if had_previous:
-                backup.rename(destination)
-            raise
+        publish_macos_application(staged, destination)
     return destination
