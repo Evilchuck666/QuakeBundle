@@ -60,7 +60,7 @@ the following engines in that directory (names are matched without case):
 | Platform | ezQuake | vkQuake |
 | --- | --- | --- |
 | Linux | `ezQuake-x86_64.AppImage` | `vkQuake.AppImage` |
-| Windows | `ezquake.exe` or `ezquake-gl*.exe` | `vkQuake.exe` |
+| Windows | `ezquake.exe` | `vkQuake.exe` |
 | macOS | `ezQuake.app` or `ezQuake-*.app` | `vkQuake.app` or `vkQuake-*.app` |
 
 macOS bundles must contain `Contents/Info.plist` with a valid
