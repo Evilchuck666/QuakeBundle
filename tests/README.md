@@ -47,12 +47,36 @@ Files and installation directories are temporary; no Steam credentials or
 GitHub secrets are needed. Steam, release metadata, Rosetta probes and macOS
 DMG commands are simulated. File downloads use local file URLs.
 
+`test_shortcuts.py` covers shortcut destinations, template downloads, quoting,
+replacement and failure recovery. On Linux with GIO installed, a harmless Python
+recorder is launched through a real desktop entry parser. Native Windows checks
+create and inspect `.lnk` files in a temporary desktop directory. Native macOS
+checks load the generated workflow with Automator and apply the PNG with AppKit
+inside a temporary Applications directory. These checks do not launch the game.
+
 These checks do not download the commercial game, authenticate against Steam,
 check live release availability, or launch vkQuake. A complete installation
 and gameplay check still requires a Steam account that owns Quake and the
 platform's native runtime dependencies.
 
 ## Using the standalone launchers
+
+After downloading the launcher and icon, `singleplayer.py` creates a per-user
+shortcut named **Quake Single Player (vkQuake Port)**:
+
+| Platform | Shortcut | Target and icon |
+| --- | --- | --- |
+| GNU/Linux | `~/.local/share/applications/vkQuake.desktop` | `launcher.py`, `quake.svg` |
+| Windows | User's Desktop, including redirected/OneDrive desktops | `launcher.exe`, `ezquake.ico` |
+| macOS | `~/Applications/Quake Single Player (vkQuake Port).app` | Automator runs `launcher.py`, with `ezquake.png` as its custom icon |
+
+Linux downloads the repository's desktop template and sets absolute paths,
+keeping a terminal available for setup. Linux and macOS shortcuts retain the
+Python executable used to run the installer; that Python installation must
+remain available. Windows uses PowerShell and Windows Script Host to create the
+shortcut. macOS uses the system Automator application stub, a Run Shell Script
+workflow and AppKit to apply the PNG icon. Reinstalling updates the shortcut;
+creation failures are reported and leave the installed game data available.
 
 Each launcher needs Python 3.9 or later and stays beside its game data. It locates
 the following engines in that directory (names are matched without case):
