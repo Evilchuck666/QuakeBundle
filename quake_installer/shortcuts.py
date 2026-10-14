@@ -183,7 +183,7 @@ def create_macos_shortcut(root, python):
             with (contents / name).open("wb") as output:
                 plistlib.dump(data, output)
         run_native(["/usr/bin/osascript", "-l", "JavaScript", "-e", MACOS_VALIDATE_AND_ICON,
-                    str(staged), str(root / "ezquake.png")])
+                    str(staged), str(root / "quake.png")])
 
         # A nonempty .app directory cannot be replaced with a single rename.
         backup = Path(tmp) / "previous.app"
