@@ -6,6 +6,7 @@ Includes the initial setup wizard. Install beside the engine executable or .app.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import math
 import os
 import platform
@@ -550,8 +551,7 @@ def resolve_engine(root, override=None):
             if system == "Linux":
                 return name == "ezquake-x86_64.appimage" and path.is_file()
             if system == "Windows":
-                return (name == "ezquake.exe"
-                        or name.startswith("ezquake-gl") and name.endswith(".exe")) and path.is_file()
+                return name == "ezquake.exe" and path.is_file()
             return (name == "ezquake.app" or name.startswith("ezquake-")
                     and name.endswith(".app")) and path.is_dir()
 
@@ -607,7 +607,6 @@ def launch_engine(root, game_args, engine):
 def report_launcher_error(message):
     """Report launch failures even when Windows pythonw has no output streams."""
     if sys.stderr is None and platform.system() == "Windows":
-        import ctypes
         ctypes.windll.user32.MessageBoxW(None, message, "ezQuake Launcher", 0x10)
     else:
         print(message, file=sys.stderr)
