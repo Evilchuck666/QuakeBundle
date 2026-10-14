@@ -153,7 +153,7 @@ class VkQuakeAssetTests(unittest.TestCase):
         """Install the platform's launcher and icon from direct GitHub URLs."""
         for system, launcher, icon in (
             ("Linux", "launcher.py", "quake.svg"),
-            ("Windows", "launcher.exe", "ezquake.ico"),
+            ("Windows", "launcher.exe", "quake.ico"),
             ("Darwin", "launcher.py", "ezquake.png"),
         ):
             with self.subTest(system=system):
