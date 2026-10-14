@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import sys
 import tempfile
 from pathlib import Path
@@ -152,9 +153,12 @@ __all__ = [
 def install_vkquake_assets() -> None:
     """Download the launcher with integrated setup and icon beside the engine."""
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
+    system = platform.system()
+    launcher = "launcher.exe" if system == "Windows" else "launcher.py"
+    icon = {"Windows": "ezquake.ico", "Darwin": "ezquake.png"}.get(system, "quake.svg")
     assets = (
-        ("scripts/vkQuake/launcher.py", "launcher.py"),
-        ("icons/quake.svg", "quake.svg"),
+        (f"scripts/vkQuake/{launcher}", launcher),
+        (f"icons/{icon}", icon),
     )
     INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -168,7 +172,7 @@ def install_vkquake_assets() -> None:
             downloaded = staging / filename
             fetch(base_url + relative, downloaded)
             if os.name != "nt":
-                downloaded.chmod(0o644 if filename.endswith(".svg") else 0o755)
+                downloaded.chmod(0o755 if filename == launcher else 0o644)
 
         for _, filename in assets:
             destination = INSTALL_SINGLE_PLAYER_DIR / filename
