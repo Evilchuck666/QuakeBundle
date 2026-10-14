@@ -109,7 +109,7 @@ class ShortcutTests(unittest.TestCase):
             self.assertEqual(kwargs["env"]["QUAKE_SHORTCUT_ROOT"], str(self.root))
             self.assertIn("SpecialFolders.Item('Desktop')", script)
             self.assertIn("'launcher.exe'", script)
-            self.assertIn("'ezquake.ico'", script)
+            self.assertIn("'quake.ico'", script)
             destination.write_bytes(b"native shortcut")
             return Mock(stdout=str(destination) + "\n")
 
@@ -152,7 +152,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
         link = json.loads(result.stdout)
         self.assertEqual(Path(link["TargetPath"]), self.root / "launcher.exe")
         self.assertEqual(Path(link["WorkingDirectory"]), self.root)
-        self.assertEqual(link["IconLocation"], str(self.root / "ezquake.ico") + ",0")
+        self.assertEqual(link["IconLocation"], str(self.root / "quake.ico") + ",0")
 
     def test_macos_builds_automator_app_and_replaces_old_version(self):
         destination = self.home / "Applications" / (shortcuts.SHORTCUT_NAME + ".app")
