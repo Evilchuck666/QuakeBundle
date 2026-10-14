@@ -83,6 +83,11 @@ try:
         fetch_json,
         open_url,
     )
+    from quake_installer.shortcuts import (
+        create_linux_shortcut,
+        create_macos_shortcut,
+        create_windows_shortcut,
+    )
     from quake_installer.steamcmd import (
         ANSI_RE,
         PROGRESS_RE,
@@ -136,6 +141,7 @@ __all__ = [
     "install_vkquake",
     "install_vkquake_assets",
     "install_vkquake_mac",
+    "install_vkquake_shortcut",
     "login",
     "mb",
     "open_url",
@@ -155,7 +161,7 @@ def install_vkquake_assets() -> None:
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
-    icon = {"Windows": "ezquake.ico", "Darwin": "ezquake.png"}.get(system, "quake.svg")
+    icon = {"Windows": "quake.ico", "Darwin": "quake.png"}.get(system, "quake.svg")
     assets = (
         (f"scripts/vkQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),
@@ -178,6 +184,22 @@ def install_vkquake_assets() -> None:
             destination = INSTALL_SINGLE_PLAYER_DIR / filename
             (staging / filename).replace(destination)
             print(f"    ✔ Installed {destination}")
+
+
+def install_vkquake_shortcut() -> None:
+    """Create the current user's shortcut after all launch assets are installed."""
+    system = platform.system()
+    root = INSTALL_SINGLE_PLAYER_DIR.resolve()
+    python = Path(sys.executable).absolute()
+    if system == "Linux":
+        destination = create_linux_shortcut(root, python, fetch)
+    elif system == "Windows":
+        destination = create_windows_shortcut(root)
+    elif system == "Darwin":
+        destination = create_macos_shortcut(root, python)
+    else:
+        raise OSError(f"Unsupported shortcut platform: {system}")
+    print(f"    ✔ Created {destination}")
 
 
 def main() -> None:
@@ -227,6 +249,12 @@ def main() -> None:
 
     step("Installing vkQuake launcher and icon")
     install_vkquake_assets()
+
+    step("Creating vkQuake shortcut")
+    try:
+        install_vkquake_shortcut()
+    except OSError as error:
+        sys.exit(f"Could not create vkQuake shortcut: {error}")
 
     print("\nDone.")
 
