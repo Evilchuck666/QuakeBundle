@@ -376,22 +376,22 @@ def console_python():
     return str(executable)
 
 
-def run_macos_setup(command):
-    """Wait for Terminal's setup command, including its actual exit status."""
-    with tempfile.TemporaryDirectory(prefix="quake-setup-") as tmp:
-        directory = Path(tmp)
-        result_path = directory / "status"
-        script = directory / "setup.sh"
-        # Terminal runs a shell command. Quote every path, including Python and
-        # the launcher; never interpolate them into AppleScript source.
-        staged_result = directory / "status.tmp"
-        script.write_text(
-            shlex.join(command) + "\nstatus=$?\n"
-            + "printf '%s\\n' \"$status\" > " + shlex.quote(str(staged_result)) + "\n"
-            + shlex.join(["/bin/mv", str(staged_result), str(result_path)]) + "\n",
-            encoding="utf-8",
-        )
-        applescript = '''on run argv
+def write_macos_setup_script(command, script, result_path):
+    """Write a quoted shell command that saves its exit status atomically."""
+    # Terminal runs a shell command. Quote every path, including Python and
+    # the launcher; never interpolate them into AppleScript source.
+    staged_result = result_path.with_name("status.tmp")
+    script.write_text(
+        shlex.join(command) + "\nstatus=$?\n"
+        + "printf '%s\\n' \"$status\" > " + shlex.quote(str(staged_result)) + "\n"
+        + shlex.join(["/bin/mv", str(staged_result), str(result_path)]) + "\n",
+        encoding="utf-8",
+    )
+
+
+def applescript_quote():
+    """Return an AppleScript that runs a shell command and waits for its completion."""
+    return '''on run argv
     tell application "Terminal"
         activate
         set setupTab to do script (item 1 of argv)
@@ -412,21 +412,40 @@ def run_macos_setup(command):
         delay 0.2
     end repeat
 end run'''
-        result = subprocess.run(
-            ["/usr/bin/osascript", "-e", applescript,
-             shlex.join(["/bin/sh", str(script)]), str(result_path)],
-            check=False, capture_output=True, text=True,
-        )
-        if result.returncode:
-            raise OSError("Could not complete setup in Terminal: " + result.stderr.strip()
-                          + " Run launcher.py --setup-only from a terminal.")
-        try:
-            status = int(result_path.read_text(encoding="utf-8").strip())
-            if not 0 <= status <= 255:
-                raise ValueError("invalid exit status")
-            return status
-        except (OSError, ValueError) as error:
-            raise OSError("Setup did not return a valid exit status; game not started.") from error
+
+
+def run_macos_setup_terminal(script, result_path):
+    """Run the setup script in Terminal and wait for completion."""
+    result = subprocess.run(
+        ["/usr/bin/osascript", "-e", applescript_quote(),
+         shlex.join(["/bin/sh", str(script)]), str(result_path)],
+        check=False, capture_output=True, text=True,
+    )
+    if result.returncode:
+        raise OSError("Could not complete setup in Terminal: " + result.stderr.strip()
+                      + " Run launcher.py --setup-only from a terminal.")
+
+
+def read_macos_setup_status(result_path):
+    """Read and validate the exit status recorded by the setup script."""
+    try:
+        status = int(result_path.read_text(encoding="utf-8").strip())
+        if not 0 <= status <= 255:
+            raise ValueError("invalid exit status")
+        return status
+    except (OSError, ValueError) as error:
+        raise OSError("Setup did not return a valid exit status; game not started.") from error
+
+
+def run_macos_setup(command):
+    """Wait for Terminal's setup command, including its actual exit status."""
+    with tempfile.TemporaryDirectory(prefix="quake-setup-") as tmp:
+        directory = Path(tmp)
+        result_path = directory / "status"
+        script = directory / "setup.sh"
+        write_macos_setup_script(command, script, result_path)
+        run_macos_setup_terminal(script, result_path)
+        return read_macos_setup_status(result_path)
 
 
 def run_setup_wizard(automatic=False):
