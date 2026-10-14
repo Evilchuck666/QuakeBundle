@@ -1,4 +1,4 @@
-"""Offline regression checks for the standalone ezQuake Linux launcher."""
+"""Offline regression checks for the standalone ezQuake launcher."""
 
 from __future__ import annotations
 
