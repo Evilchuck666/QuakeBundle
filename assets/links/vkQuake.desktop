@@ -5,7 +5,7 @@
 
 [Desktop Entry]
 Type=Application
-Name=vkQuake
+Name=Quake Single Player (vkQuake Port)
 Comment=Play Quake with vkQuake
 Exec=python3 "/absolute/path/to/vkQuake/launcher.py"
 Path=/absolute/path/to/vkQuake
