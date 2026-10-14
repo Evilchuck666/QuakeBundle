@@ -384,7 +384,7 @@ class EzQuakePlatformTests(PlatformChecksMixin, unittest.TestCase):
 
     engine_name = "ezQuake"
     appimage = "ezQuake-x86_64.AppImage"
-    windows_exe = "ezquake-gl.exe"
+    windows_exe = "ezquake.exe"
     autoexec = "ezquake/configs/autoexec.cfg"
     config_dir = "ezquake"
     answers = "Ranger\nRng\nRed\n3\n"
@@ -393,17 +393,16 @@ class EzQuakePlatformTests(PlatformChecksMixin, unittest.TestCase):
         """Prepare the shared platform fixtures for this test case."""
         self._prepare_platform()
 
-    def test_windows_variants_are_detected_without_silently_selecting_one(self):
-        """Recognize Windows variants and require a choice when multiple engines match."""
+    def test_windows_detects_only_packaged_engine_and_allows_explicit_overrides(self):
+        """Detect ezquake.exe automatically and require overrides for other names."""
         self.system.return_value = "Windows"
-        for name in ("ezquake.exe", "ezquake-gl.exe", "ezquake-glsl.exe"):
-            engine = self._executable(name)
-            self.assertEqual(self.launcher.resolve_engine(self.root), engine)
-            engine.unlink()
         self._executable("ezquake-gl.exe")
         selected = self._executable("ezquake-glsl.exe")
-        with self.assertRaisesRegex(OSError, "Multiple.*--engine"):
+        with self.assertRaisesRegex(OSError, "No ezQuake engine found.*--engine"):
             self.launcher.resolve_engine(self.root)
+        self.assertEqual(self.launcher.resolve_engine(self.root, str(selected)), selected)
+        engine = self._executable(self.windows_exe)
+        self.assertEqual(self.launcher.resolve_engine(self.root), engine)
         self.assertEqual(self.launcher.resolve_engine(self.root, str(selected)), selected)
 
 
