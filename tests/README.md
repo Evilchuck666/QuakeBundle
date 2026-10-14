@@ -67,7 +67,7 @@ shortcut named **Quake Single Player (vkQuake Port)**:
 | Platform | Shortcut | Target and icon |
 | --- | --- | --- |
 | GNU/Linux | `~/.local/share/applications/vkQuake.desktop` | `launcher.py`, `quake.svg` |
-| Windows | User's Desktop, including redirected/OneDrive desktops | `launcher.exe`, `ezquake.ico` |
+| Windows | User's Desktop, including redirected/OneDrive desktops | `launcher.exe`, `quake.ico` |
 | macOS | `~/Applications/Quake Single Player (vkQuake Port).app` | Automator runs `launcher.py`, with `ezquake.png` as its custom icon |
 
 Linux downloads the repository's desktop template and sets absolute paths,
