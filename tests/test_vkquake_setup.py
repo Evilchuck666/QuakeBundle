@@ -1,4 +1,4 @@
-"""Offline regression checks for the vkQuake setup wizard and Linux launcher."""
+"""Offline regression checks for the vkQuake setup wizard and launcher."""
 
 from __future__ import annotations
 
