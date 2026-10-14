@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Launch the Linux ezQuake AppImage after checking its initial setup.
-Includes the initial setup wizard. Install beside ezQuake-x86_64.AppImage.
+"""Launch ezQuake on Linux, Windows or macOS after checking its setup.
+Includes the initial setup wizard. Install beside the engine executable or .app.
 """
 
 from __future__ import annotations
@@ -8,7 +8,10 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import platform
+import plistlib
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -17,6 +20,7 @@ import tempfile
 from http.client import HTTPException
 from pathlib import Path
 from urllib.request import urlopen
+from xml.parsers.expat import ExpatError
 
 CONFIG_FILES = ("autoexec.cfg", "game.cfg", "player.cfg")
 CONFIG_BASE_URL = (
@@ -28,6 +32,8 @@ NEEDS_SETUP = 2
 
 def get_input(prompt, default=None):
     """Prompt for a value, using the default when the response is empty."""
+    if sys.stdin is None or sys.stdout is None:
+        raise EOFError("No console available")
     if default:
         return input(f"{prompt} [{default}]: ") or default
     return input(f"{prompt}: ")
@@ -359,29 +365,104 @@ def prepare_shared_autoexec(root):
             staged.unlink(missing_ok=True)
 
 
+def console_python():
+    """Use the console interpreter when launched through Windows pythonw.exe."""
+    executable = Path(sys.executable)
+    if executable.name.lower() == "pythonw.exe":
+        executable = executable.with_name("python.exe")
+        if not executable.is_file():
+            raise OSError(f"Console Python not found: {executable}")
+    return str(executable)
+
+
+def run_macos_setup(command):
+    """Wait for Terminal's setup command, including its actual exit status."""
+    with tempfile.TemporaryDirectory(prefix="quake-setup-") as tmp:
+        directory = Path(tmp)
+        result_path = directory / "status"
+        script = directory / "setup.sh"
+        # Terminal runs a shell command. Quote every path, including Python and
+        # the launcher; never interpolate them into AppleScript source.
+        staged_result = directory / "status.tmp"
+        script.write_text(
+            shlex.join(command) + "\nstatus=$?\n"
+            + "printf '%s\\n' \"$status\" > " + shlex.quote(str(staged_result)) + "\n"
+            + shlex.join(["/bin/mv", str(staged_result), str(result_path)]) + "\n",
+            encoding="utf-8",
+        )
+        applescript = '''on run argv
+    tell application "Terminal"
+        activate
+        set setupTab to do script (item 1 of argv)
+    end tell
+    delay 1
+    repeat
+        try
+            return do shell script ("/bin/cat " & quoted form of (item 2 of argv))
+        end try
+        tell application "Terminal"
+            if not (exists setupTab) then error "Setup terminal was closed."
+            set stillRunning to busy of setupTab
+        end tell
+        -- The command may finish between the first read and the busy check.
+        if not stillRunning then
+            return do shell script ("/bin/cat " & quoted form of (item 2 of argv))
+        end if
+        delay 0.2
+    end repeat
+end run'''
+        result = subprocess.run(
+            ["/usr/bin/osascript", "-e", applescript,
+             shlex.join(["/bin/sh", str(script)]), str(result_path)],
+            check=False, capture_output=True, text=True,
+        )
+        if result.returncode:
+            raise OSError("Could not complete setup in Terminal: " + result.stderr.strip()
+                          + " Run launcher.py --setup-only from a terminal.")
+        try:
+            status = int(result_path.read_text(encoding="utf-8").strip())
+            if not 0 <= status <= 255:
+                raise ValueError("invalid exit status")
+            return status
+        except (OSError, ValueError) as error:
+            raise OSError("Setup did not return a valid exit status; game not started.") from error
+
+
 def run_setup_wizard(automatic=False):
-    """Run setup in a terminal when needed and return its exit status."""
+    """Run setup in the current console or a platform-specific terminal."""
     arguments = ["--auto"] if automatic else []
     print("Running Initial Setup Wizard...", flush=True)
 
-    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+    if all(stream is not None and stream.isatty() for stream in (sys.stdin, sys.stdout)):
+        return setup_main(arguments)
+
+    command = [console_python(), str(Path(__file__).resolve()), "--setup-only", *arguments]
+    system = platform.system()
+    if system == "Windows":
+        return subprocess.run(command, check=False,
+                              creationflags=subprocess.CREATE_NEW_CONSOLE).returncode
+    if system == "Darwin":
+        return run_macos_setup(command)
+    if system == "Linux":
         xterm = shutil.which("xterm")
-
         if xterm and os.environ.get("DISPLAY"):
-            command = [xterm, "-T", "ezQuake Setup Wizard", "-e", sys.executable,
-                       str(Path(__file__).resolve()), "--setup-only", *arguments]
-            return subprocess.run(command, check=False).returncode
+            return subprocess.run([xterm, "-T", "ezQuake Setup Wizard", "-e", *command],
+                                  check=False).returncode
 
+    # Retain redirected-input support and headless Linux operation.
+    if sys.stdin is None or sys.stdout is None:
+        raise OSError("Setup requires a console. Run launcher.py --setup-only in a terminal.")
     return setup_main(arguments)
 
 
 def print_launcher_help():
     """Show launcher options, setup modes and examples."""
     program = Path(__file__).name
-    print(f"Usage: {program} [--help] [--wizard] [--mod NAME] "
+    print(f"Usage: {program} [--help] [--wizard] [--mod NAME] [--engine PATH] "
           f"""[ezQuake arguments...]
 
 Options:
+  --engine PATH  Select an executable or macOS .app (relative to the current directory).
   --help      Show this help message and exit.
   --wizard    Run the setup wizard before launching ezQuake.
   --mod NAME  Load a QuakeWorld mod folder beside qw (equivalent to -game NAME).
@@ -397,13 +478,16 @@ Examples:
 
 Every mod uses ezquake/configs/autoexec.cfg and its shared game/player settings.
 
+Supports Linux AppImage, Windows .exe and macOS .app installations.
+Install this launcher beside the engine and game data.
+
 All other arguments are passed to ezQuake.
 Use -- to pass all remaining arguments directly to ezQuake.""")
 
 
 def parse_launcher_args(argv):
     """Read launcher options in order, preserving all other engine arguments."""
-    options = argparse.Namespace(help=False, wizard=False, game_args=[])
+    options = argparse.Namespace(help=False, wizard=False, engine=None, game_args=[])
     arguments = iter(argv)
 
     for argument in arguments:
@@ -412,6 +496,11 @@ def parse_launcher_args(argv):
             break
         elif argument == "--wizard":
             options.wizard = True
+        elif argument == "--engine":
+            value = next(arguments, "")
+            if not value or value.startswith(("-", "+")):
+                raise ValueError("--engine requires an executable or .app path.")
+            options.engine = value
         elif argument == "--mod":
             mod = next(arguments, "")
             if not mod or mod.startswith(("-", "+")):
@@ -427,14 +516,14 @@ def parse_launcher_args(argv):
 
 
 def configure_sdl_environment():
-    """Set NVIDIA/OpenGL and SDL/X11 overrides inherited by setup and the engine."""
+    """Apply common SDL settings and Linux-specific graphics overrides."""
     os.environ.update(
-        __GL_SYNC_TO_VBLANK="0",
-        __GL_MaxFramesAllowed="1",
         SDL_MOUSE_RELATIVE_MODE_WARP="0",
         SDL_MOUSE_RELATIVE_SCALING="0",
-        SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR="1",
     )
+    if platform.system() == "Linux":
+        os.environ["SDL_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR"] = "1"
+        os.environ.update(__GL_SYNC_TO_VBLANK="0", __GL_MaxFramesAllowed="1")
 
 
 def ensure_setup(force=False):
@@ -446,26 +535,86 @@ def ensure_setup(force=False):
     return status if status >= 0 else 128 + abs(status)
 
 
-def launch_engine(root, game_args):
-    """Prepare shared settings and replace this process with ezQuake."""
+def resolve_engine(root, override=None):
+    """Locate an installed engine, resolving macOS bundles through their metadata."""
+    system = platform.system()
+    if system not in ("Linux", "Windows", "Darwin"):
+        raise OSError(f"Unsupported operating system: {system}")
+
+    if override:
+        # Resolve relative overrides before changing to the installation directory.
+        engine = Path(override).expanduser().resolve()
+    else:
+        def matches(path):
+            name = path.name.lower()
+            if system == "Linux":
+                return name == "ezquake-x86_64.appimage" and path.is_file()
+            if system == "Windows":
+                return (name == "ezquake.exe"
+                        or name.startswith("ezquake-gl") and name.endswith(".exe")) and path.is_file()
+            return (name == "ezquake.app" or name.startswith("ezquake-")
+                    and name.endswith(".app")) and path.is_dir()
+
+        candidates = sorted(path for path in root.iterdir() if matches(path))
+        if not candidates:
+            raise OSError(f"No ezQuake engine found for {system} in {root}. "
+                          "Use --engine PATH to select an installed executable or macOS .app.")
+        if len(candidates) > 1:
+            raise OSError("Multiple ezQuake engines found: "
+                          + ", ".join(path.name for path in candidates)
+                          + ". Select one with --engine PATH.")
+        engine = candidates[0].resolve()
+
+    if system == "Darwin" and engine.suffix.lower() == ".app":
+        try:
+            with (engine / "Contents" / "Info.plist").open("rb") as metadata:
+                info = plistlib.load(metadata)
+            name = info.get("CFBundleExecutable") if isinstance(info, dict) else None
+            if (not isinstance(name, str) or not name or name in (".", "..")
+                    or any(char in name for char in ("/", "\\", "\x00"))):
+                raise ValueError("invalid CFBundleExecutable")
+        except (OSError, ValueError, plistlib.InvalidFileException, ExpatError) as error:
+            raise OSError(f"Invalid application bundle {engine}: {error}") from error
+        engine = engine / "Contents" / "MacOS" / name
+
+    if not engine.is_file():
+        raise OSError(f"Engine executable not found: {engine}")
+    if system == "Windows" and engine.suffix.lower() != ".exe":
+        raise OSError(f"Windows requires an .exe engine: {engine}")
+    if system != "Windows" and not os.access(engine, os.X_OK):
+        raise OSError(f"Engine is not executable: {engine}")
+    return engine
+
+
+def launch_engine(root, game_args, engine):
+    """Start the engine with shared settings and preserve its exit status."""
     prepare_shared_autoexec(root)
+    engine = str(engine)
+    command = [engine, "-basedir", str(root)]
+    command.append("-nohome")
+    command.extend(["+exec", "ezquake/configs/autoexec.cfg", *game_args])
 
-    # Keep generated engine settings and saves inside this installation.
+    if sys.stdout is not None:
+        sys.stdout.flush()
+    if platform.system() == "Windows":
+        return subprocess.run(command, cwd=root, check=False).returncode
+
     os.chdir(root)
-    engine = str(root / "ezQuake-x86_64.AppImage")
+    os.execv(engine, command)
+    return 0
 
-    sys.stdout.flush()
-    os.execv(
-        engine,
-        [
-            engine, "-basedir", str(root), "-nohome",
-            "+exec", "ezquake/configs/autoexec.cfg", *game_args,
-        ]
-    )
+
+def report_launcher_error(message):
+    """Report launch failures even when Windows pythonw has no output streams."""
+    if sys.stderr is None and platform.system() == "Windows":
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, message, "ezQuake Launcher", 0x10)
+    else:
+        print(message, file=sys.stderr)
 
 
 def main(argv=None):
-    """Handle launcher options, run setup if needed, then replace this process."""
+    """Handle options, validate the engine, run setup and start the game."""
     argv = list(sys.argv[1:] if argv is None else argv)
     # A terminal child must configure the game and return, without launching it.
     if argv[:1] == ["--setup-only"]:
@@ -474,7 +623,7 @@ def main(argv=None):
     try:
         options = parse_launcher_args(argv)
     except ValueError as error:
-        print(f"Error: {error}", file=sys.stderr)
+        report_launcher_error(f"Error: {error}")
         return 2
 
     if options.help:
@@ -485,14 +634,14 @@ def main(argv=None):
     configure_sdl_environment()
 
     try:
+        engine = resolve_engine(root, options.engine)
         status = ensure_setup(force=options.wizard)
         if status != 0:
             return status
 
-        launch_engine(root, options.game_args)
-        return 0
+        return launch_engine(root, options.game_args, engine)
     except OSError as error:
-        print(f"Error launching ezQuake: {error}", file=sys.stderr)
+        report_launcher_error(f"Error launching ezQuake: {error}")
         return 1
 
 
