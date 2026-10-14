@@ -555,6 +555,54 @@ def ensure_setup(force=False):
     return status if status >= 0 else 128 + abs(status)
 
 
+def matches_engine_platform(path, system):
+    """Match the packaged engine name and file type for this platform."""
+    name = path.name.lower()
+    if system == "Linux":
+        return name == "ezquake-x86_64.appimage" and path.is_file()
+    if system == "Windows":
+        return name == "ezquake.exe" and path.is_file()
+    return (name == "ezquake.app" or name.startswith("ezquake-")
+            and name.endswith(".app")) and path.is_dir()
+
+
+def find_installed_engine(root, system):
+    """Find exactly one matching engine in the installation directory."""
+    candidates = sorted(path for path in root.iterdir() if matches_engine_platform(path, system))
+    if not candidates:
+        raise OSError(f"No ezQuake engine found for {system} in {root}. "
+                      "Use --engine PATH to select an installed executable or macOS .app.")
+    if len(candidates) > 1:
+        raise OSError("Multiple ezQuake engines found: "
+                      + ", ".join(path.name for path in candidates)
+                      + ". Select one with --engine PATH.")
+    return candidates[0].resolve()
+
+
+def resolve_macos_bundle(engine):
+    """Read the executable path from validated application bundle metadata."""
+    try:
+        with (engine / "Contents" / "Info.plist").open("rb") as metadata:
+            info = plistlib.load(metadata)
+        name = info.get("CFBundleExecutable") if isinstance(info, dict) else None
+        if (not isinstance(name, str) or not name or name in (".", "..")
+                or any(char in name for char in ("/", "\\", "\x00"))):
+            raise ValueError("invalid CFBundleExecutable")
+    except (OSError, ValueError, plistlib.InvalidFileException, ExpatError) as error:
+        raise OSError(f"Invalid application bundle {engine}: {error}") from error
+    return engine / "Contents" / "MacOS" / name
+
+
+def validate_engine_executable(engine, system):
+    """Check that the engine is a usable executable on this platform."""
+    if not engine.is_file():
+        raise OSError(f"Engine executable not found: {engine}")
+    if system == "Windows" and engine.suffix.lower() != ".exe":
+        raise OSError(f"Windows requires an .exe engine: {engine}")
+    if system != "Windows" and not os.access(engine, os.X_OK):
+        raise OSError(f"Engine is not executable: {engine}")
+
+
 def resolve_engine(root, override=None):
     """Locate an installed engine, resolving macOS bundles through their metadata."""
     system = platform.system()
@@ -565,43 +613,12 @@ def resolve_engine(root, override=None):
         # Resolve relative overrides before changing to the installation directory.
         engine = Path(override).expanduser().resolve()
     else:
-        def matches(path):
-            name = path.name.lower()
-            if system == "Linux":
-                return name == "ezquake-x86_64.appimage" and path.is_file()
-            if system == "Windows":
-                return name == "ezquake.exe" and path.is_file()
-            return (name == "ezquake.app" or name.startswith("ezquake-")
-                    and name.endswith(".app")) and path.is_dir()
-
-        candidates = sorted(path for path in root.iterdir() if matches(path))
-        if not candidates:
-            raise OSError(f"No ezQuake engine found for {system} in {root}. "
-                          "Use --engine PATH to select an installed executable or macOS .app.")
-        if len(candidates) > 1:
-            raise OSError("Multiple ezQuake engines found: "
-                          + ", ".join(path.name for path in candidates)
-                          + ". Select one with --engine PATH.")
-        engine = candidates[0].resolve()
+        engine = find_installed_engine(root, system)
 
     if system == "Darwin" and engine.suffix.lower() == ".app":
-        try:
-            with (engine / "Contents" / "Info.plist").open("rb") as metadata:
-                info = plistlib.load(metadata)
-            name = info.get("CFBundleExecutable") if isinstance(info, dict) else None
-            if (not isinstance(name, str) or not name or name in (".", "..")
-                    or any(char in name for char in ("/", "\\", "\x00"))):
-                raise ValueError("invalid CFBundleExecutable")
-        except (OSError, ValueError, plistlib.InvalidFileException, ExpatError) as error:
-            raise OSError(f"Invalid application bundle {engine}: {error}") from error
-        engine = engine / "Contents" / "MacOS" / name
+        engine = resolve_macos_bundle(engine)
 
-    if not engine.is_file():
-        raise OSError(f"Engine executable not found: {engine}")
-    if system == "Windows" and engine.suffix.lower() != ".exe":
-        raise OSError(f"Windows requires an .exe engine: {engine}")
-    if system != "Windows" and not os.access(engine, os.X_OK):
-        raise OSError(f"Engine is not executable: {engine}")
+    validate_engine_executable(engine, system)
     return engine
 
 
