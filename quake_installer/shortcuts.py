@@ -82,7 +82,7 @@ try {
     $link = $shell.CreateShortcut($staged)
     $link.TargetPath = Join-Path $env:QUAKE_SHORTCUT_ROOT 'launcher.exe'
     $link.WorkingDirectory = $env:QUAKE_SHORTCUT_ROOT
-    $link.IconLocation = (Join-Path $env:QUAKE_SHORTCUT_ROOT 'ezquake.ico') + ',0'
+    $link.IconLocation = (Join-Path $env:QUAKE_SHORTCUT_ROOT 'quake.ico') + ',0'
     $link.Description = $env:QUAKE_SHORTCUT_NAME
     $link.Save()
     if (Test-Path -LiteralPath $destination) {
