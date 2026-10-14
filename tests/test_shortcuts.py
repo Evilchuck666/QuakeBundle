@@ -20,7 +20,10 @@ from quake_installer import shortcuts
 
 
 class ShortcutTests(unittest.TestCase):
+    """Exercise shortcut creation, replacement, and recovery on each platform."""
+
     def setUp(self):
+        """Prepare an isolated home directory and native shortcut fixtures."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         self.home = Path(
@@ -30,17 +33,19 @@ class ShortcutTests(unittest.TestCase):
         self.root.mkdir()
         self.python = Path(sys.executable).absolute()
         stack.enter_context(patch.object(Path, "home", return_value=self.home))
-        self.template = (Path(singleplayer.__file__).parent / "assets/links/vkQuake.desktop")
+        self.template = Path(singleplayer.__file__).parent / "assets/links/vkQuake.desktop"
         self.stub = self.home / "Automator Application Stub"
         self.stub.write_bytes(b"native stub fixture")
         self.native_stub = shortcuts.AUTOMATOR_STUB
         stack.enter_context(patch.object(shortcuts, "AUTOMATOR_STUB", self.stub))
 
     def fetch_template(self, url, destination):
+        """Copy the local desktop template after checking the requested URL."""
         self.assertEqual(url, shortcuts.DESKTOP_URL)
         shutil.copyfile(self.template, destination)
 
     def test_linux_customizes_template_and_updates_existing_shortcut(self):
+        """Customize the Linux desktop entry and replace it on reinstallation."""
         destination = self.home / ".local/share/applications/vkQuake.desktop"
         destination.parent.mkdir(parents=True)
         destination.write_text("old shortcut", encoding="utf-8")
@@ -60,6 +65,7 @@ class ShortcutTests(unittest.TestCase):
                            capture_output=True)
 
     def test_linux_failure_preserves_previous_shortcut(self):
+        """Preserve the existing desktop entry when fetching its template fails."""
         destination = self.home / ".local/share/applications/vkQuake.desktop"
         destination.parent.mkdir(parents=True)
         destination.write_bytes(b"previous shortcut")
@@ -80,6 +86,7 @@ class ShortcutTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform.startswith("linux") and shutil.which("gio"),
                          "Requires Linux GIO desktop entry launching")
     def test_linux_exec_preserves_special_characters_when_launched(self):
+        """Launch through GIO with special characters preserved in the game path."""
         # Launch a harmless Python recorder through the real desktop entry parser.
         root = self.root / 'back\\slash "quotes" `ticks` %f'
         root.mkdir()
@@ -100,6 +107,7 @@ class ShortcutTests(unittest.TestCase):
         self.assertEqual(output.read_text(encoding="utf-8"), str(root))
 
     def test_windows_passes_paths_as_data_and_uses_reported_desktop(self):
+        """Pass Windows paths through the environment and use the reported desktop."""
         destination = self.home / "OneDrive/Desktop" / (shortcuts.SHORTCUT_NAME + ".lnk")
         destination.parent.mkdir(parents=True)
 
@@ -119,6 +127,7 @@ class ShortcutTests(unittest.TestCase):
             self.assertEqual(shortcuts.create_windows_shortcut(self.root), destination)
 
     def test_windows_reports_native_failure_or_missing_output(self):
+        """Report PowerShell failures and missing shortcut output."""
         with patch.object(shortcuts.subprocess, "run", side_effect=subprocess.CalledProcessError(
             1, "powershell.exe", stderr="access denied"
         )), self.assertRaisesRegex(OSError, "access denied"):
@@ -129,6 +138,7 @@ class ShortcutTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "win32", "Requires Windows Script Host")
     def test_native_windows_shortcut_target_icon_and_reinstallation(self):
+        """Verify native Windows shortcut properties across repeated installations."""
         # Only redirect Desktop discovery; exercise the actual COM creation code.
         script = shortcuts.WINDOWS_SHORTCUT_SCRIPT.replace(
             "$shell.SpecialFolders.Item('Desktop')", "$env:QUAKE_TEST_DESKTOP")
@@ -157,6 +167,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
         self.assertEqual(link["IconLocation"], str(self.root / "quake.ico") + ",0")
 
     def test_macos_builds_automator_app_and_replaces_old_version(self):
+        """Build an Automator app with a working shell action and replace the old app."""
         destination = self.home / "Applications" / (shortcuts.SHORTCUT_NAME + ".app")
         destination.mkdir(parents=True)
         (destination / "old").write_bytes(b"previous application")
@@ -193,6 +204,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
         self.assertEqual(list(destination.parent.iterdir()), [destination])
 
     def test_macos_failure_preserves_previous_application(self):
+        """Keep the existing macOS application when icon creation fails."""
         destination = self.home / "Applications" / (shortcuts.SHORTCUT_NAME + ".app")
         destination.mkdir(parents=True)
         (destination / "old").write_bytes(b"previous application")
@@ -203,6 +215,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
         self.assertEqual(list(destination.parent.iterdir()), [destination])
 
     def test_macos_publish_failure_restores_previous_application(self):
+        """Restore the previous macOS application when publishing its replacement fails."""
         destination = self.home / "Applications" / (shortcuts.SHORTCUT_NAME + ".app")
         destination.mkdir(parents=True)
         (destination / "old").write_bytes(b"previous application")
@@ -222,6 +235,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
 
     @unittest.skipUnless(sys.platform == "darwin", "Requires Automator and AppKit")
     def test_native_macos_workflow_and_png_icon(self):
+        """Create a native Automator app using a PNG icon across reinstallations."""
         source = Path(singleplayer.__file__).parent / "assets/icons/quake.png"
         shutil.copyfile(source, self.root / "quake.png")
         with patch.object(shortcuts, "AUTOMATOR_STUB", self.native_stub):
@@ -231,6 +245,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
                 self.assertEqual(list(destination.parent.iterdir()), [destination])
 
     def test_installer_dispatches_to_current_platform(self):
+        """Dispatch shortcut installation to the current platform's helper."""
         for system, helper in (("Linux", "create_linux_shortcut"),
                                ("Windows", "create_windows_shortcut"),
                                ("Darwin", "create_macos_shortcut")):
