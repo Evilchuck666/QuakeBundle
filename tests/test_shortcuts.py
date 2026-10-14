@@ -162,7 +162,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
         def macos(command, **_kwargs):
             staged = Path(command[-2])
             self.assertEqual(command[:4], ["/usr/bin/osascript", "-l", "JavaScript", "-e"])
-            self.assertEqual(command[-1], str(self.root / "ezquake.png"))
+            self.assertEqual(command[-1], str(self.root / "quake.png"))
             self.assertTrue((destination / "old").is_file())
             with (staged / "Contents/Info.plist").open("rb") as source:
                 info = plistlib.load(source)
@@ -220,8 +220,8 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
 
     @unittest.skipUnless(sys.platform == "darwin", "Requires Automator and AppKit")
     def test_native_macos_workflow_and_png_icon(self):
-        source = Path(singleplayer.__file__).parent / "assets/icons/ezquake.png"
-        shutil.copyfile(source, self.root / "ezquake.png")
+        source = Path(singleplayer.__file__).parent / "assets/icons/quake.png"
+        shutil.copyfile(source, self.root / "quake.png")
         with patch.object(shortcuts, "AUTOMATOR_STUB", self.native_stub):
             for _ in range(2):
                 destination = shortcuts.create_macos_shortcut(self.root, self.python)
