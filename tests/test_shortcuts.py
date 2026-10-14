@@ -23,7 +23,9 @@ class ShortcutTests(unittest.TestCase):
     def setUp(self):
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        self.home = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake shortcuts ")))
+        self.home = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="quake shortcuts "))
+        )
         self.root = self.home / "Quake's é $game; 100%"
         self.root.mkdir()
         self.python = Path(sys.executable).absolute()
