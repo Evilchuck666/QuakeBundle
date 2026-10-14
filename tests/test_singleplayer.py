@@ -262,6 +262,7 @@ class InstallerTests(unittest.TestCase):
             for name in (
                 "check_rosetta", "install_steamcmd", "update_steamcmd", "login",
                 "download_quake", "install_vkquake", "install_vkquake_assets",
+                "install_vkquake_shortcut",
             ):
                 mock = stack.enter_context(patch.object(singleplayer, name))
                 calls.attach_mock(mock, name)
@@ -288,7 +289,7 @@ class InstallerTests(unittest.TestCase):
                 call.check_rosetta(), call.install_steamcmd(),
                 call.update_steamcmd(exe), call.login(exe, "argument-user"),
                 call.download_quake(exe, "argument-user", 2), call.install_vkquake(),
-                call.install_vkquake_assets(),
+                call.install_vkquake_assets(), call.install_vkquake_shortcut(),
             ])
             output.reconfigure.assert_called_once_with(errors="replace")
         for relative in gamedata.EXPECTED_FILES:
@@ -329,6 +330,26 @@ class InstallerTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "engine download failed"):
                 singleplayer.main()
             calls.install_vkquake_assets.assert_not_called()
+            calls.install_vkquake_shortcut.assert_not_called()
+
+    def test_asset_failure_stops_before_shortcut_creation(self):
+        """Never create a shortcut when its target could not be installed."""
+        self.make_download()
+        with self.main_dependencies([]) as (calls, _):
+            calls.install_vkquake_assets.side_effect = OSError("download failed")
+            with self.assertRaisesRegex(OSError, "download failed"):
+                singleplayer.main()
+            calls.install_vkquake_shortcut.assert_not_called()
+
+    def test_shortcut_failure_reports_error_without_claiming_success(self):
+        """Keep installed game data, but report shortcut creation failure."""
+        self.make_download()
+        with self.main_dependencies([]) as (calls, output):
+            calls.install_vkquake_shortcut.side_effect = OSError("permission denied")
+            with self.assertRaisesRegex(SystemExit, "Could not create vkQuake shortcut"):
+                singleplayer.main()
+            self.assertNotIn("Done.", "".join(str(c) for c in output.write.call_args_list))
+        self.assertTrue((self.install / "id1/pak0.pak").is_file())
 
     def test_download_failure_stops_before_installation_and_cleanup(self):
         """A download failure should stop before any install or cleanup phase runs."""
