@@ -20,6 +20,7 @@ except ImportError:
 
 from .config import STEAMCMD_DIR, STEAMCMD_URLS, TAIL_LINES
 from .console import progress_bar
+from .events import current
 from .net import fetch
 
 # Lines of steamcmd output that drive the progress display.
@@ -111,6 +112,21 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
         if line:
             tail.append(line)
             on_line(line)
+
+    if observer := current.get():
+        from .interactive import run_process
+
+        pending = b""
+
+        def output(chunk, send):
+            nonlocal pending
+            *lines, pending = re.split(rb"[\r\n]", pending + chunk)
+            for raw in lines:
+                handle(raw)
+
+        code = run_process(command, STEAMCMD_DIR, output, observer.checkpoint)
+        handle(pending)
+        return code, list(tail)
 
     if os.name == "posix":
         # steamcmd buffers its output when writing to a pipe, so progress

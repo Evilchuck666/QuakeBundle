@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .config import DOWNLOAD_CHUNK_SIZE, USER_AGENT
 from .console import byte_bar, mb
+from .events import current
 
 
 def curl_get(url: str):
@@ -52,8 +53,16 @@ def open_url(url: str):
     """Open a URL, falling back to curl when the system certificate store is needed."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
 
+    options = {}
+    if observer := current.get():
+        # Frozen applications carry their own CA store, including on macOS.
+        import certifi
+
+        observer.checkpoint()
+        options = {"timeout": 30, "context": ssl.create_default_context(cafile=certifi.where())}
+
     try:
-        return urllib.request.urlopen(request)
+        return urllib.request.urlopen(request, **options)
     except urllib.error.URLError as error:
         if isinstance(error.reason, ssl.SSLCertVerificationError):
             if platform.system() == "Windows":

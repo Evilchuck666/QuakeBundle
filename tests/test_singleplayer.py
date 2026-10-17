@@ -174,6 +174,12 @@ class VkQuakeAssetTests(unittest.TestCase):
                 f"scripts/vkQuake/{launcher}", f"icons/{icon}"
             )
         }
+        # The Windows launcher is a build artifact, not a checked-in executable.
+        # Exercise the download with a synthetic payload just like other binaries.
+        if launcher == "launcher.exe":
+            binary = self.root / "launcher.exe"
+            binary.write_bytes(b"MZ synthetic Windows launcher fixture")
+            expected[next(iter(expected))] = binary
         real_fetch = singleplayer.fetch
 
         def local_fetch(url, destination):

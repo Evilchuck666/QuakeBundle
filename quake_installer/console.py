@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sys
 
+from .events import Progress, current
+
 try:
     from tqdm import tqdm
 except ImportError:
@@ -18,6 +20,8 @@ def progress_bar(**kwargs) -> tqdm:
 
     The bar is removed when closed, so the caller prints the outcome instead.
     """
+    if observer := current.get():
+        return Progress(observer, **kwargs)
     return tqdm(file=sys.stdout, disable=None, leave=False, dynamic_ncols=True, **kwargs)
 
 
