@@ -73,6 +73,9 @@ class ShortcutTests(unittest.TestCase):
             self.assertIn(f"TryExec={self.python}\n", content)
             self.assertIn("Terminal=true\n", content)
             self.assertNotIn("/absolute/path/to/", content)
+            entries = "\n".join(line for line in content.splitlines() if not line.startswith("#"))
+            self.assertNotIn("@INSTALL_DIR@", entries)
+            self.assertNotIn("@PYTHON@", entries)
             self.assertEqual(other.read_bytes(), b"other engine shortcut")
             self.assertEqual(set(destination.parent.iterdir()), {destination, other})
         if shutil.which("desktop-file-validate"):
@@ -278,18 +281,22 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
         for system, helper in (("Linux", "create_linux_shortcut"),
                                ("Windows", "create_windows_shortcut"),
                                ("Darwin", "create_macos_shortcut")):
-            with self.subTest(system=system), \
-                 patch.object(self.installer.platform, "system", return_value=system), \
-                 patch.object(self.installer, self.install_directory, self.root), \
-                 patch.object(self.installer, helper) as create, \
-                 contextlib.redirect_stdout(io.StringIO()):
-                getattr(self.installer, self.install_function)()
-                expected = [self.root.resolve()]
-                if system != "Windows":
-                    expected.append(self.python)
-                if system == "Linux":
-                    expected.append(self.installer.fetch)
-                create.assert_called_once_with(*expected, self.shortcut)
+            for directory in (None, self.root / "custom location"):
+                with self.subTest(system=system, directory=directory), \
+                     patch.object(self.installer.platform, "system", return_value=system), \
+                     patch.object(self.installer, self.install_directory, self.root), \
+                     patch.object(self.installer, helper) as create, \
+                     contextlib.redirect_stdout(io.StringIO()):
+                    if directory is None:
+                        getattr(self.installer, self.install_function)()
+                    else:
+                        getattr(self.installer, self.install_function)(directory)
+                    expected = [(self.root if directory is None else directory).resolve()]
+                    if system != "Windows":
+                        expected.append(self.python)
+                    if system == "Linux":
+                        expected.append(self.installer.fetch)
+                    create.assert_called_once_with(*expected, self.shortcut)
 
 
 class EzQuakeShortcutTests(ShortcutTests):

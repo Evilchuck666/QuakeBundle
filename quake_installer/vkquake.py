@@ -62,8 +62,9 @@ def vkquake_release() -> tuple[str, dict] | None:
     sys.exit(f"vkQuake {release['tag_name']} has no *{suffix} build")
 
 
-def install_vkquake_mac(image: Path) -> Path:
+def install_vkquake_mac(image: Path, install_dir: Path | None = None) -> Path:
     """Install a downloaded vkQuake macOS .dmg into the bundle directory."""
+    install_dir = INSTALL_SINGLE_PLAYER_DIR if install_dir is None else install_dir
     with tempfile.TemporaryDirectory() as tmp:
         mountpoint = Path(tmp) / "mnt"
         mountpoint.mkdir()
@@ -76,7 +77,7 @@ def install_vkquake_mac(image: Path) -> Path:
 
         try:
             app = next(mountpoint.glob("*.app"))
-            dest = INSTALL_SINGLE_PLAYER_DIR / app.name
+            dest = install_dir / app.name
             shutil.rmtree(dest, ignore_errors=True)
             # ditto keeps the bundle's symlinks, permissions and signature.
             subprocess.run(["ditto", app, dest], check=True)
@@ -90,8 +91,9 @@ def install_vkquake_mac(image: Path) -> Path:
     return dest
 
 
-def install_vkquake() -> None:
+def install_vkquake(install_dir: Path | None = None) -> None:
     """Download and install the matching vkQuake build for this platform."""
+    install_dir = INSTALL_SINGLE_PLAYER_DIR if install_dir is None else install_dir
     found = vkquake_release()
     if found is None:
         print(f"    No vkQuake build for {platform.system()} {platform.machine()}; skipping")
@@ -102,37 +104,37 @@ def install_vkquake() -> None:
     print(f"    vkQuake {version} ({asset['name']})")
 
     system = platform.system()
-    INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
+    install_dir.mkdir(parents=True, exist_ok=True)
 
     # Keep the temporary file on the install filesystem so the AppImage can
     # replace the previous version without an extra copy or a partial write.
-    with tempfile.TemporaryDirectory(dir=INSTALL_SINGLE_PLAYER_DIR) as tmp:
+    with tempfile.TemporaryDirectory(dir=install_dir) as tmp:
         download = Path(tmp) / ("vkQuake.dmg" if system == "Darwin" else "vkQuake.download")
         fetch(asset["browser_download_url"], download)
 
         if system == "Darwin":
-            installed = install_vkquake_mac(download)
+            installed = install_vkquake_mac(download, install_dir)
             instructions = "    Run it by opening vkQuake.app; it uses the folder it is in."
         elif system == "Windows":
             with zipfile.ZipFile(download) as archive:
                 for info in archive.infolist():
                     # Debug symbols, not needed to play.
                     if not info.filename.endswith(".pdb"):
-                        archive.extract(info, INSTALL_SINGLE_PLAYER_DIR)
+                        archive.extract(info, install_dir)
 
-            installed = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.exe"
+            installed = install_dir / "vkQuake.exe"
 
             instructions = "    Run it from its folder; "
             instructions += "it uses the current directory as the game folder."
         else:
             # Fixed name, so the command to run it doesn't change with each version.
-            installed = INSTALL_SINGLE_PLAYER_DIR / "vkQuake.AppImage"
+            installed = install_dir / "vkQuake.AppImage"
 
             download.chmod(0o755)
             os.replace(download, installed)
 
             instructions = f'    Run it with:\n      "{installed}"'
-            instructions += f' -basedir "{INSTALL_SINGLE_PLAYER_DIR}"'
+            instructions += f' -basedir "{install_dir}"'
 
         print(f"    ✔ Installed {installed}")
         print(instructions)

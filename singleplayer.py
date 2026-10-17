@@ -3,20 +3,24 @@
 # requires-python = ">=3.9"
 # dependencies = ["tqdm"]
 # ///
-"""Download Quake, with its expansions, with steamcmd into the user's data directory.
+"""Download and install Quake with its expansions using steamcmd.
 
 It also installs the latest release of the vkQuake engine for the current
 system, alongside its launcher with integrated setup and Quake icon, inside
 the game data.
 
 Usage:
-    python3 singleplayer.py [--attempts N] STEAM_USERNAME
+    python3 singleplayer.py [--attempts N] [--install-dir PATH] STEAM_USERNAME
 
 It needs tqdm (pip install tqdm); "uv run singleplayer.py" installs it on the fly.
 
 The username can also be given in the STEAM_USERNAME environment variable.
 
-Install location (quake/singleplayer inside the user's data directory):
+Use --install-dir PATH to choose the final game directory (no subfolder is added).
+Relative paths and ~ are supported. The shortcut uses the chosen directory.
+SteamCMD and temporary downloads remain in the user's data directory.
+
+Default install location (quake/singleplayer inside the user's data directory):
     Linux:   $XDG_DATA_HOME/quake/singleplayer (~/.local/share by default)
     macOS:   ~/Library/Application Support/quake/singleplayer
     Windows: %LOCALAPPDATA%\\quake\\singleplayer
@@ -26,7 +30,7 @@ expansions are included with it.
 steamcmd will prompt for the password and the Steam Guard code interactively.
 
 Only the data of the re-release is kept: its game folders (id1, hipnotic,
-rogue, ...) with their pak0.pak and music go directly into quake/singleplayer,
+rogue, ...) with their pak0.pak and music go directly into the chosen directory,
 next to vkQuake. It is the only data that vkQuake can use everywhere: it needs
 lowercase "id1/pak0.pak" on case-sensitive file systems, and the original data
 has "id1/PAK0.PAK".
@@ -64,6 +68,7 @@ try:
         USER_AGENT,
         VKQUAKE_MAC_RELEASES_URL,
         VKQUAKE_RELEASE_URL,
+        parse_install_dir,
         user_data_dir,
     )
     from quake_installer.console import (
@@ -157,8 +162,9 @@ __all__ = [
 ]
 
 
-def install_vkquake_assets() -> None:
+def install_vkquake_assets(install_dir: Path | None = None) -> None:
     """Download the launcher with integrated setup and icon beside the engine."""
+    install_dir = INSTALL_SINGLE_PLAYER_DIR if install_dir is None else install_dir
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
@@ -167,11 +173,11 @@ def install_vkquake_assets() -> None:
         (f"scripts/vkQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),
     )
-    INSTALL_SINGLE_PLAYER_DIR.mkdir(parents=True, exist_ok=True)
+    install_dir.mkdir(parents=True, exist_ok=True)
 
     # Finish every download before replacing files from a previous installation.
     with tempfile.TemporaryDirectory(
-        prefix=".vkquake-assets-", dir=INSTALL_SINGLE_PLAYER_DIR
+        prefix=".vkquake-assets-", dir=install_dir
     ) as tmp:
         staging = Path(tmp)
         for relative, filename in assets:
@@ -182,15 +188,15 @@ def install_vkquake_assets() -> None:
                 downloaded.chmod(0o755 if filename == launcher else 0o644)
 
         for _, filename in assets:
-            destination = INSTALL_SINGLE_PLAYER_DIR / filename
+            destination = install_dir / filename
             (staging / filename).replace(destination)
             print(f"    ✔ Installed {destination}")
 
 
-def install_vkquake_shortcut() -> None:
+def install_vkquake_shortcut(install_dir: Path | None = None) -> None:
     """Create the current user's shortcut after all launch assets are installed."""
     system = platform.system()
-    root = INSTALL_SINGLE_PLAYER_DIR.resolve()
+    root = (INSTALL_SINGLE_PLAYER_DIR if install_dir is None else install_dir).resolve()
     python = Path(sys.executable).absolute()
     if system == "Linux":
         destination = create_linux_shortcut(root, python, fetch, VKQUAKE_SHORTCUT)
@@ -214,6 +220,10 @@ def main() -> None:
     )
 
     parser.add_argument("--attempts", type=int, default=3, help="steamcmd retries")
+    parser.add_argument(
+        "--install-dir", type=parse_install_dir, default=str(INSTALL_SINGLE_PLAYER_DIR),
+        metavar="PATH", help="game installation directory (default: %(default)s)",
+    )
 
     args = parser.parse_args()
 
@@ -237,8 +247,8 @@ def main() -> None:
     step("Downloading Quake")
     download_quake(steamcmd, args.username, args.attempts)
 
-    step("Installing game data")
-    install_single_player_game_data()
+    step(f"Installing game data in {args.install_dir}")
+    install_single_player_game_data(args.install_dir)
 
     # Only once the game data is installed, so a failed run can be retried
     # without downloading steamcmd and the game again.
@@ -246,14 +256,14 @@ def main() -> None:
     clean_up()
 
     step("Installing vkQuake")
-    install_vkquake()
+    install_vkquake(args.install_dir)
 
     step("Installing vkQuake launcher and icon")
-    install_vkquake_assets()
+    install_vkquake_assets(args.install_dir)
 
     step("Creating vkQuake shortcut")
     try:
-        install_vkquake_shortcut()
+        install_vkquake_shortcut(args.install_dir)
     except OSError as error:
         sys.exit(f"Could not create vkQuake shortcut: {error}")
 

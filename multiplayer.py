@@ -3,20 +3,24 @@
 # requires-python = ">=3.9"
 # dependencies = ["tqdm"]
 # ///
-"""Download Quake with steamcmd into the user's data directory for multiplayer.
+"""Download and install Quake for multiplayer using steamcmd.
 
 It also installs the latest release of the ezQuake engine for the current
 system, alongside its launcher with integrated setup and Quake icon, inside
 the game data.
 
 Usage:
-    python3 multiplayer.py [--attempts N] STEAM_USERNAME
+    python3 multiplayer.py [--attempts N] [--install-dir PATH] STEAM_USERNAME
 
 It needs tqdm (pip install tqdm); "uv run multiplayer.py" installs it on the fly.
 
 The username can also be given in the STEAM_USERNAME environment variable.
 
-Install location (quake/multiplayer inside the user's data directory):
+Use --install-dir PATH to choose the final game directory (no subfolder is added).
+Relative paths and ~ are supported. The shortcut uses the chosen directory.
+SteamCMD and temporary downloads remain in the user's data directory.
+
+Default install location (quake/multiplayer inside the user's data directory):
     Linux:   $XDG_DATA_HOME/quake/multiplayer (~/.local/share by default)
     macOS:   ~/Library/Application Support/quake/multiplayer
     Windows: %LOCALAPPDATA%\\quake\\multiplayer
@@ -26,7 +30,7 @@ expansions are included with it.
 steamcmd will prompt for the password and the Steam Guard code interactively.
 
 The original game's id1/pak0.pak and id1/pak1.pak are installed alongside
-ezQuake in quake/multiplayer, with filenames normalized to lowercase.
+ezQuake in the chosen directory, with filenames normalized to lowercase.
 nQuake's base files, Clan Arena, Team Fortress and High Resolution Textures
 are also downloaded and installed automatically.
 """
@@ -62,6 +66,7 @@ try:
         STEAMCMD_URLS,
         TAIL_LINES,
         USER_AGENT,
+        parse_install_dir,
         user_data_dir,
     )
     from quake_installer.console import (
@@ -155,10 +160,10 @@ __all__ = [
 ]
 
 
-def clean_up() -> None:
+def clean_up(install_dir: Path | None = None) -> None:
     """Remove downloads and the bundled ezQuake configs and documentation."""
     _clean_up_downloads()
-    root = INSTALL_MULTIPLAYER_DIR / "ezquake"
+    root = (INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir) / "ezquake"
     for name in ("configs", "temp", "gnu.txt", "Online Manual.url"):
         path = root / name
         try:
@@ -171,8 +176,9 @@ def clean_up() -> None:
         print(f"    Removed {path}")
 
 
-def install_ezquake_assets() -> None:
+def install_ezquake_assets(install_dir: Path | None = None) -> None:
     """Download the launcher with integrated setup and icon beside the engine."""
+    install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
@@ -181,11 +187,11 @@ def install_ezquake_assets() -> None:
         (f"scripts/ezQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),
     )
-    INSTALL_MULTIPLAYER_DIR.mkdir(parents=True, exist_ok=True)
+    install_dir.mkdir(parents=True, exist_ok=True)
 
     # Finish every download before replacing files from a previous installation.
     with tempfile.TemporaryDirectory(
-        prefix=".ezquake-assets-", dir=INSTALL_MULTIPLAYER_DIR
+        prefix=".ezquake-assets-", dir=install_dir
     ) as tmp:
         staging = Path(tmp)
         for relative, filename in assets:
@@ -196,15 +202,15 @@ def install_ezquake_assets() -> None:
                 downloaded.chmod(0o755 if filename == launcher else 0o644)
 
         for _, filename in assets:
-            destination = INSTALL_MULTIPLAYER_DIR / filename
+            destination = install_dir / filename
             (staging / filename).replace(destination)
             print(f"    ✔ Installed {destination}")
 
 
-def install_ezquake_shortcut() -> None:
+def install_ezquake_shortcut(install_dir: Path | None = None) -> None:
     """Create the current user's shortcut after all launch assets are installed."""
     system = platform.system()
-    root = INSTALL_MULTIPLAYER_DIR.resolve()
+    root = (INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir).resolve()
     python = Path(sys.executable).absolute()
     if system == "Linux":
         destination = create_linux_shortcut(root, python, fetch, EZQUAKE_SHORTCUT)
@@ -228,6 +234,10 @@ def main() -> None:
     )
 
     parser.add_argument("--attempts", type=int, default=3, help="steamcmd retries")
+    parser.add_argument(
+        "--install-dir", type=parse_install_dir, default=str(INSTALL_MULTIPLAYER_DIR),
+        metavar="PATH", help="game installation directory (default: %(default)s)",
+    )
 
     args = parser.parse_args()
 
@@ -251,23 +261,23 @@ def main() -> None:
     step("Downloading Quake")
     download_quake(steamcmd, args.username, args.attempts)
 
-    step("Installing game data")
-    install_multiplayer_game_data()
+    step(f"Installing game data in {args.install_dir}")
+    install_multiplayer_game_data(args.install_dir)
 
     # Only once the game data is installed, so a failed run can be retried
     # without downloading steamcmd and the game again.
     step("Cleaning up")
-    clean_up()
+    clean_up(args.install_dir)
 
     step("Installing ezQuake")
-    install_ezquake()
+    install_ezquake(args.install_dir)
 
     step("Installing ezQuake launcher and icon")
-    install_ezquake_assets()
+    install_ezquake_assets(args.install_dir)
 
     step("Creating ezQuake shortcut")
     try:
-        install_ezquake_shortcut()
+        install_ezquake_shortcut(args.install_dir)
     except OSError as error:
         sys.exit(f"Could not create ezQuake shortcut: {error}")
 

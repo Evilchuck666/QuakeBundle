@@ -42,8 +42,9 @@ def ezquake_release() -> tuple[str, dict] | None:
     sys.exit(f"ezQuake {release['tag_name']} has no *{suffix} build")
 
 
-def install_ezquake_mac(download: Path) -> Path:
+def install_ezquake_mac(download: Path, install_dir: Path | None = None) -> Path:
     """Extract the macOS ZIP, preserving bundle permissions and symlinks."""
+    install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
     with tempfile.TemporaryDirectory() as tmp:
         extracted = Path(tmp)
         # ditto preserves the executable bit and the app bundle's metadata.
@@ -54,15 +55,16 @@ def install_ezquake_mac(download: Path) -> Path:
         app = extracted / "ezQuake.app"
         if not app.is_dir():
             raise OSError("ezQuake.app not found in the downloaded ZIP")
-        dest = INSTALL_MULTIPLAYER_DIR / app.name
+        dest = install_dir / app.name
         shutil.rmtree(dest, ignore_errors=True)
         subprocess.run(["ditto", app, dest], check=True)
 
     return dest
 
 
-def install_ezquake() -> None:
+def install_ezquake(install_dir: Path | None = None) -> None:
     """Download and install the matching ezQuake build for this platform."""
+    install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
     found = ezquake_release()
     if found is None:
         print(f"    No ezQuake build for {platform.system()} {platform.machine()}; skipping")
@@ -73,31 +75,31 @@ def install_ezquake() -> None:
     print(f"    ezQuake {version} ({asset['name']})")
 
     system = platform.system()
-    INSTALL_MULTIPLAYER_DIR.mkdir(parents=True, exist_ok=True)
+    install_dir.mkdir(parents=True, exist_ok=True)
 
     # Keep the temporary file on the install filesystem so the AppImage can
     # replace the previous version without an extra copy or a partial write.
-    with tempfile.TemporaryDirectory(dir=INSTALL_MULTIPLAYER_DIR) as tmp:
+    with tempfile.TemporaryDirectory(dir=install_dir) as tmp:
         download = Path(tmp) / "ezQuake.zip"
         fetch(asset["browser_download_url"], download)
 
         if system == "Darwin":
-            installed = install_ezquake_mac(download)
+            installed = install_ezquake_mac(download, install_dir)
             instructions = "    Run it by opening ezQuake.app; it uses the folder it is in."
         elif system == "Windows":
             with zipfile.ZipFile(download) as archive:
                 for info in archive.infolist():
                     # Debug symbols, not needed to play.
                     if not info.filename.endswith(".pdb"):
-                        archive.extract(info, INSTALL_MULTIPLAYER_DIR)
+                        archive.extract(info, install_dir)
 
-            installed = INSTALL_MULTIPLAYER_DIR / "ezQuake.exe"
+            installed = install_dir / "ezQuake.exe"
 
             instructions = "    Run it from its folder; "
             instructions += "it uses the current directory as the game folder."
         else:
             # Fixed name, so the command to run it doesn't change with each version.
-            installed = INSTALL_MULTIPLAYER_DIR / "ezQuake-x86_64.AppImage"
+            installed = install_dir / "ezQuake-x86_64.AppImage"
 
             with zipfile.ZipFile(download) as archive:
                 binary = Path(archive.extract(installed.name, tmp))
@@ -105,7 +107,7 @@ def install_ezquake() -> None:
             os.replace(binary, installed)
 
             instructions = f'    Run it with:\n      "{installed}"'
-            instructions += f' -basedir "{INSTALL_MULTIPLAYER_DIR}"'
+            instructions += f' -basedir "{install_dir}"'
 
         print(f"    ✔ Installed {installed}")
         print(instructions)

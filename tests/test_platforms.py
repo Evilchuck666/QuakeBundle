@@ -227,8 +227,9 @@ class VkQuakeInstallTests(unittest.TestCase):
             mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
             mock.patch.object(vkquake.platform, "system", return_value="Windows"),
             mock.patch.object(vkquake, "fetch", side_effect=download),
+            mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.root / "unused default"),
         ):
-            vkquake.install_vkquake()
+            vkquake.install_vkquake(self.install_dir)
 
         files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
                  for path in self.install_dir.rglob("*") if path.is_file()}
@@ -305,8 +306,9 @@ class VkQuakeInstallTests(unittest.TestCase):
                 vkquake, "fetch", side_effect=lambda url, path: path.write_bytes(b"disk image")
             ) as fetch,
             mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands,
+            mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.root / "unused default"),
         ):
-            vkquake.install_vkquake()
+            vkquake.install_vkquake(self.install_dir)
         image = fetch.call_args.args[1]
         mountpoint = commands.call_args_list[0].args[0][-2]
         self.assertEqual(commands.call_args_list, [
@@ -501,8 +503,9 @@ class EzQuakeInstallTests(unittest.TestCase):
             mock.patch.object(ezquake, "ezquake_release", return_value=("3.6.9", asset)),
             mock.patch.object(ezquake.platform, "system", return_value="Windows"),
             mock.patch.object(ezquake, "fetch", side_effect=download),
+            mock.patch.object(ezquake, "INSTALL_MULTIPLAYER_DIR", self.root / "unused default"),
         ):
-            ezquake.install_ezquake()
+            ezquake.install_ezquake(self.install_dir)
 
         files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
                  for path in self.install_dir.rglob("*") if path.is_file()}
@@ -582,8 +585,9 @@ class EzQuakeInstallTests(unittest.TestCase):
             mock.patch.object(ezquake.platform, "system", return_value="Darwin"),
             mock.patch.object(ezquake, "fetch", side_effect=download) as fetch,
             mock.patch.object(ezquake.subprocess, "run", side_effect=run) as commands,
+            mock.patch.object(ezquake, "INSTALL_MULTIPLAYER_DIR", self.root / "unused default"),
         ):
-            ezquake.install_ezquake()
+            ezquake.install_ezquake(self.install_dir)
         download = fetch.call_args.args[1]
         extracted = commands.call_args_list[0].args[0][-1]
         self.assertEqual(commands.call_args_list, [

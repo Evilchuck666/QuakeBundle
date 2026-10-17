@@ -21,6 +21,8 @@ from quake_installer import gamedata
 class CommandLineTests(unittest.TestCase):
     """Exercise the Quake single-player CLI entry point."""
 
+    installer = singleplayer
+
     def run_cli(self, *arguments):
         """Run the CLI in a temporary user directory."""
         with tempfile.TemporaryDirectory(prefix="quake cli ") as directory:
@@ -34,7 +36,7 @@ class CommandLineTests(unittest.TestCase):
                 PYTHONIOENCODING="utf-8",
             )
             return subprocess.run(
-                [sys.executable, str(Path(singleplayer.__file__).resolve()), *arguments],
+                [sys.executable, str(Path(self.installer.__file__).resolve()), *arguments],
                 cwd=directory,
                 env=env,
                 capture_output=True,
@@ -49,6 +51,7 @@ class CommandLineTests(unittest.TestCase):
         result = self.run_cli("--help")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--attempts", result.stdout)
+        self.assertIn("--install-dir", result.stdout)
         self.assertIn("username", result.stdout)
 
     def test_username_is_required(self):
@@ -220,11 +223,14 @@ class InstallerTests(unittest.TestCase):
         """Create isolated game-install directories for each test."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake install ")))
+        self.root = Path(stack.enter_context(
+            tempfile.TemporaryDirectory(prefix="quake install ")
+        )).resolve()
         self.download = self.root / "download"
         self.rerelease = self.download / "rerelease"
         self.install = self.root / "singleplayer"
         self.steam = self.root / "steamcmd"
+        stack.enter_context(patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install))
         for name, value in {
             "DOWNLOAD_DIR": self.download,
             "RERELEASE_DIR": self.rerelease,
@@ -277,7 +283,8 @@ class InstallerTests(unittest.TestCase):
         self.write(self.install / "id1/config.cfg", b"settings")
         with self.main_dependencies(["--attempts", "2", "argument-user"]) as (calls, output):
             # vkQuake must run after installation and cleanup have succeeded.
-            def check_engine_install():
+            def check_engine_install(install_dir):
+                self.assertEqual(install_dir, self.install)
                 self.assertTrue((self.install / "id1/pak0.pak").is_file())
                 self.assertFalse(self.download.exists())
                 self.assertFalse(self.steam.exists())
@@ -288,8 +295,8 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(calls.mock_calls, [
                 call.check_rosetta(), call.install_steamcmd(),
                 call.update_steamcmd(exe), call.login(exe, "argument-user"),
-                call.download_quake(exe, "argument-user", 2), call.install_vkquake(),
-                call.install_vkquake_assets(), call.install_vkquake_shortcut(),
+                call.download_quake(exe, "argument-user", 2), call.install_vkquake(self.install),
+                call.install_vkquake_assets(self.install), call.install_vkquake_shortcut(self.install),
             ])
             output.reconfigure.assert_called_once_with(errors="replace")
         for relative in gamedata.EXPECTED_FILES:

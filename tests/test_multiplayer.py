@@ -8,6 +8,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import multiplayer
+import test_singleplayer
+
+
+class MultiplayerCommandLineTests(test_singleplayer.CommandLineTests):
+    """Exercise the multiplayer CLI with the same options as single-player."""
+
+    installer = multiplayer
 
 
 class MultiplayerCleanupTests(unittest.TestCase):

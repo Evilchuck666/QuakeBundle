@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import os
 import platform
 from pathlib import Path
@@ -32,6 +33,23 @@ STEAMCMD_DIR = BASE_DIR / "steamcmd"
 # re-release game folders; multiplayer keeps the original id1 PAKs.
 DOWNLOAD_DIR = BASE_DIR / "download"
 RERELEASE_DIR = DOWNLOAD_DIR / "rerelease"
+
+
+def parse_install_dir(value: str) -> Path:
+    """Resolve a CLI destination and keep it outside directories removed by cleanup."""
+    try:
+        if not value:
+            raise ValueError("the installation directory cannot be empty")
+        directory = Path(value).expanduser().resolve()
+        if directory.exists() and not directory.is_dir():
+            raise ValueError(f"not a directory: {directory}")
+        for temporary in (DOWNLOAD_DIR, STEAMCMD_DIR):
+            if directory.is_relative_to(temporary.resolve()):
+                raise ValueError(f"the installation directory cannot be inside {temporary}")
+    except (OSError, RuntimeError, ValueError) as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
+    return directory
+
 
 VKQUAKE_RELEASE_URL = "https://api.github.com/repos/Novum/vkQuake/releases/latest"
 EZQUAKE_RELEASE_URL = "https://api.github.com/repos/QW-Group/ezquake-source/releases/latest"

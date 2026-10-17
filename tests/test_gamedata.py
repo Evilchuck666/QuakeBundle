@@ -68,7 +68,7 @@ class MultiplayerGameDataTests(unittest.TestCase):
                     self.write(self.install / "id1" / name.lower(), b"old data")
 
                 gamedata.install_multiplayer_game_data()
-                self.nquake.assert_called_once_with()
+                self.nquake.assert_called_once_with(self.install)
                 self.nquake.reset_mock()
 
                 for name, content in zip(names, (b"original pak0", b"original pak1")):

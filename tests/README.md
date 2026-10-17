@@ -1,7 +1,25 @@
 # Installer tests
 
-The installer entry point is `singleplayer.py`; its supporting modules live in
-the `quake_installer/` package alongside it.
+The installer entry points are `singleplayer.py` and `multiplayer.py`; their
+supporting modules live in the `quake_installer/` package alongside them.
+
+Both accept `--install-dir PATH` to select the final installation directory:
+
+```sh
+python3 singleplayer.py --install-dir "/mnt/games/Quake Singleplayer" STEAM_USERNAME
+python3 multiplayer.py --install-dir "~/Games/Quake Multiplayer" STEAM_USERNAME
+```
+
+The directory contains the game data, engine, launcher and icon directly; no
+`singleplayer` or `multiplayer` subdirectory is appended. Relative paths resolve
+from the current working directory, and `~` expands to the user's home directory.
+Use separate directories for the two editions, which have different game data
+and launchers. Without the option, each installer keeps its existing per-user
+default. SteamCMD and temporary Steam downloads still use the user's data
+directory; installing the game on another filesystem is supported.
+Shortcuts on all platforms point to the selected directory. Reinstalling to a
+different directory updates that edition's shortcut and leaves the previous
+installation in place.
 
 Run the same offline checks as GitHub Actions from the repository root:
 
@@ -46,6 +64,11 @@ verify setup, mods, argument forwarding, failure handling and graphics settings.
 Files and installation directories are temporary; no Steam credentials or
 GitHub secrets are needed. Steam, release metadata, Rosetta probes and macOS
 DMG commands are simulated. File downloads use local file URLs.
+
+`test_install_paths.py` runs both installation flows with synthetic downloads,
+checking custom and default destinations, relative paths, home expansion,
+spaces and special characters, generated desktop entries, cleanup, invalid
+destinations and simulated transfers between filesystems.
 
 `test_shortcuts.py` covers shortcut destinations, template downloads, quoting,
 replacement and failure recovery. On Linux with GIO installed, a harmless Python

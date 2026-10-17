@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import configparser
+import errno
 import os
 import shutil
 import sys
@@ -173,12 +174,12 @@ def _stage_nquake_packages(staging: Path, mirror: str) -> Path:
     return content
 
 
-def _install_nquake_files(content: Path) -> tuple[int, int]:
+def _install_nquake_files(content: Path, install_dir: Path) -> tuple[int, int]:
     """Merge staged files, preserving settings and saves; return count and bytes."""
     count = size = 0
-    root = INSTALL_MULTIPLAYER_DIR.resolve()
+    root = install_dir.resolve()
     for source in content.rglob("*"):
-        destination = INSTALL_MULTIPLAYER_DIR / source.relative_to(content)
+        destination = install_dir / source.relative_to(content)
         if not destination.resolve().is_relative_to(root):
             sys.exit(f"nQuake destination is outside the install directory: {destination}")
         if source.is_dir():
@@ -196,22 +197,34 @@ def _install_nquake_files(content: Path) -> tuple[int, int]:
     return count, size
 
 
-def install_nquake_game_data() -> None:
+def install_nquake_game_data(install_dir: Path | None = None) -> None:
     """Install nQuake's base files and all three addons without prompting."""
-    INSTALL_MULTIPLAYER_DIR.mkdir(parents=True, exist_ok=True)
+    install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
+    install_dir.mkdir(parents=True, exist_ok=True)
     # Temporary ZIPs and extracted files are removed even if staging fails.
     with tempfile.TemporaryDirectory(
-        prefix=".nquake-", dir=INSTALL_MULTIPLAYER_DIR
+        prefix=".nquake-", dir=install_dir
     ) as tmp:
         staging = Path(tmp)
         mirror = _download_nquake_mirror(staging)
         content = _stage_nquake_packages(staging, mirror)
-        count, size = _install_nquake_files(content)
-        print(f"    ✔ nQuake: {count} files, {mb(size)} in {INSTALL_MULTIPLAYER_DIR}")
+        count, size = _install_nquake_files(content, install_dir)
+        print(f"    ✔ nQuake: {count} files, {mb(size)} in {install_dir}")
 
 
-def install_multiplayer_game_data() -> None:
+def _move_game_file(source, destination: Path) -> None:
+    """Replace game files, also supporting destinations on a different filesystem."""
+    try:
+        os.replace(source, destination)
+    except OSError as error:
+        if error.errno != errno.EXDEV:
+            raise
+        shutil.move(str(source), str(destination))
+
+
+def install_multiplayer_game_data(install_dir: Path | None = None) -> None:
     """Install the original Quake PAKs, nQuake base files and multiplayer addons."""
+    install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
     source = DOWNLOAD_DIR / "id1"
     expected = ("pak0.pak", "pak1.pak")
     # Steam's original data uses uppercase names; accept either case, but
@@ -225,19 +238,20 @@ def install_multiplayer_game_data() -> None:
 
     size = sum(files[name].stat().st_size for name in expected)
     # Leave the Steam download intact if fetching the nQuake packages fails.
-    install_nquake_game_data()
-    destination = INSTALL_MULTIPLAYER_DIR / "id1"
+    install_nquake_game_data(install_dir)
+    destination = install_dir / "id1"
     destination.mkdir(parents=True, exist_ok=True)
 
     # Replace only the game archives, preserving existing saves and configs.
     for name in expected:
-        os.replace(files[name], destination / name)
+        _move_game_file(files[name], destination / name)
 
-    print(f"    ✔ {len(expected)} files, {mb(size)} in {INSTALL_MULTIPLAYER_DIR}")
+    print(f"    ✔ {len(expected)} files, {mb(size)} in {install_dir}")
 
 
-def install_single_player_game_data() -> None:
+def install_single_player_game_data(install_dir: Path | None = None) -> None:
     """Move the downloaded game data into the install directory."""
+    install_dir = INSTALL_SINGLE_PLAYER_DIR if install_dir is None else install_dir
     missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
     if missing:
         sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
@@ -282,13 +296,13 @@ def install_single_player_game_data() -> None:
             continue
 
         if directory != previous_directory:
-            destination = INSTALL_SINGLE_PLAYER_DIR / directory.relative_to(RERELEASE_DIR)
+            destination = install_dir / directory.relative_to(RERELEASE_DIR)
             destination.mkdir(parents=True, exist_ok=True)
             previous_directory = directory
 
-        os.replace(entry.path, destination / entry.name)
+        _move_game_file(entry.path, destination / entry.name)
 
-    print(f"    ✔ {count} files, {mb(size)} in {INSTALL_SINGLE_PLAYER_DIR}")
+    print(f"    ✔ {count} files, {mb(size)} in {install_dir}")
 
 
 def clean_up() -> None:
