@@ -137,6 +137,7 @@ class NQuakeGameDataTests(unittest.TestCase):
     """Exercise the automatic nQuake installation using synthetic distribution ZIPs."""
 
     def setUp(self):
+        """Create local nQuake packages and replace network downloads with file copies."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
         self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="nquake data ")))
@@ -190,15 +191,19 @@ class NQuakeGameDataTests(unittest.TestCase):
             self.write_zip(name, files)
         stack.enter_context(patch.object(gamedata, "INSTALL_MULTIPLAYER_DIR", self.install))
         stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", self.download))
-        self.fetch = stack.enter_context(patch.object(gamedata, "fetch", side_effect=self.fetch_file))
+        self.fetch = stack.enter_context(
+            patch.object(gamedata, "fetch", side_effect=self.fetch_file)
+        )
         self.output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
 
     def write_zip(self, name, files):
+        """Build a distribution ZIP from archive paths and file contents."""
         with zipfile.ZipFile(self.distribution / name, "w") as archive:
             for path, data in files.items():
                 archive.writestr(path, data)
 
     def fetch_file(self, url, destination):
+        """Validate the requested URL and copy its local manifest or package."""
         if url == gamedata.NQUAKE_INI_URL:
             source = self.manifest
         else:
@@ -209,6 +214,7 @@ class NQuakeGameDataTests(unittest.TestCase):
         shutil.copyfile(source, destination)
 
     def installed_files(self):
+        """Return installed file contents keyed by relative POSIX paths."""
         if not self.install.exists():
             return {}
         return {p.relative_to(self.install).as_posix(): p.read_bytes()
@@ -228,7 +234,9 @@ class NQuakeGameDataTests(unittest.TestCase):
             MultiplayerGameDataTests.write(self.install / name, data)
         MultiplayerGameDataTests.write(self.install / "qw/maps/update.bsp", b"old map")
         for name in ("pak0.pak", "pak1.pak"):
-            MultiplayerGameDataTests.write(self.download / "id1" / name.upper(), b"Steam " + name.encode())
+            MultiplayerGameDataTests.write(
+                self.download / "id1" / name.upper(), b"Steam " + name.encode()
+            )
 
         with patch("builtins.input", side_effect=AssertionError("Unexpected prompt")):
             gamedata.install_multiplayer_game_data()
@@ -247,7 +255,9 @@ class NQuakeGameDataTests(unittest.TestCase):
                      "prox/prox.pk3", "fortress/pak0.pak", "qw/qrp_maps_textures_1.pk3"):
             expected = next(files[name] for files in self.packages.values() if name in files)
             self.assertEqual(actual[name], expected)
-        for name in ("readme.txt", "qw/autoexec.cfg", "prox/configs/config.cfg", "fortress/default.cfg"):
+        for name in (
+            "readme.txt", "qw/autoexec.cfg", "prox/configs/config.cfg", "fortress/default.cfg"
+        ):
             expected = next(files[name] for files in self.packages.values() if name in files)
             if os.name != "nt":
                 expected = expected.replace(b"\r\n", b"\n")
@@ -258,6 +268,7 @@ class NQuakeGameDataTests(unittest.TestCase):
         self.assertEqual(list(self.install.glob(".nquake-*")), [])
 
     def test_invalid_manifest_stops_before_package_downloads(self):
+        """Reject invalid manifests before downloading or installing any packages."""
         for manifest, message in (
             ("[versions]\nlinux=2.2\n", "No download mirrors"),
             ("[mirror_addresses]\n1=file:///tmp/packages\n", "No download mirrors"),
@@ -273,6 +284,7 @@ class NQuakeGameDataTests(unittest.TestCase):
                 self.assertEqual(list(self.install.iterdir()), [])
 
     def test_failed_download_or_corrupt_archive_preserves_install_and_cleans_temporary_files(self):
+        """Preserve installed files and remove staging files when a package fails."""
         MultiplayerGameDataTests.write(self.install / "qw/maps/update.bsp", b"installed map")
         before = self.installed_files()
 
@@ -297,6 +309,7 @@ class NQuakeGameDataTests(unittest.TestCase):
                 self.assertEqual(list(self.install.glob(".nquake-*")), [])
 
     def test_rejects_archive_paths_outside_install_directory(self):
+        """Reject archive paths that could write outside the installation directory."""
         for path in ("../../escaped.cfg", "/escaped.cfg", "C:\\escaped.cfg", "..\\escaped.cfg"):
             with self.subTest(path=path):
                 self.write_zip("addon-textures.zip", {path: b"outside"})
