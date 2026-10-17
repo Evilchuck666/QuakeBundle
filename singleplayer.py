@@ -75,7 +75,7 @@ try:
     from quake_installer.gamedata import (
         clean_up,
         download_quake,
-        install_game_data,
+        install_single_player_game_data,
     )
     from quake_installer.net import (
         curl_get,
@@ -136,7 +136,7 @@ __all__ = [
     "download_quake",
     "fetch",
     "fetch_json",
-    "install_game_data",
+    "install_single_player_game_data",
     "install_steamcmd",
     "install_vkquake",
     "install_vkquake_assets",
@@ -237,7 +237,7 @@ def main() -> None:
     download_quake(steamcmd, args.username, args.attempts)
 
     step("Installing game data")
-    install_game_data()
+    install_single_player_game_data()
 
     # Only once the game data is installed, so a failed run can be retried
     # without downloading steamcmd and the game again.

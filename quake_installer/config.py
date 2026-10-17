@@ -25,14 +25,17 @@ APP_ID = 2310
 
 BASE_DIR = user_data_dir() / "quake"
 INSTALL_SINGLE_PLAYER_DIR = BASE_DIR / "singleplayer"
+INSTALL_MULTIPLAYER_DIR = BASE_DIR / "multiplayer"
 STEAMCMD_DIR = BASE_DIR / "steamcmd"
 
-# steamcmd downloads the whole Steam install here; only the re-release game
-# folders are moved to INSTALL_SINGLE_PLAYER_DIR, and the rest is removed.
+# steamcmd downloads the whole Steam install here. Single-player keeps the
+# re-release game folders; multiplayer keeps the original id1 PAKs.
 DOWNLOAD_DIR = BASE_DIR / "download"
 RERELEASE_DIR = DOWNLOAD_DIR / "rerelease"
 
 VKQUAKE_RELEASE_URL = "https://api.github.com/repos/Novum/vkQuake/releases/latest"
+EZQUAKE_RELEASE_URL = "https://api.github.com/repos/QW-Group/ezquake-source/releases/latest"
+NQUAKE_INI_URL = "https://raw.githubusercontent.com/nQuake/client-win32/master/etc/nquake.ini"
 
 # vkQuake publishes no macOS build; Mac Source Ports does (universal binary).
 VKQUAKE_MAC_RELEASES_URL = "https://api.github.com/repos/MacSourcePorts/MSPBuildSystem/releases"

@@ -16,7 +16,10 @@ from .config import (
     VKQUAKE_MAC_RELEASES_URL,
     VKQUAKE_RELEASE_URL,
 )
-from .net import fetch, fetch_json
+from .net import (
+    fetch,
+    fetch_json,
+)
 
 
 def vkquake_release() -> tuple[str, dict] | None:

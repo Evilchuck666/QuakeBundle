@@ -1,21 +1,28 @@
-"""Quake game data: downloading it with steamcmd and installing the re-release."""
+"""Quake game data: downloading it with steamcmd and installing it for each engine."""
 
 from __future__ import annotations
 
+import configparser
 import os
 import shutil
 import sys
+import tempfile
+import zipfile
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from .config import (
     APP_ID,
     DOWNLOAD_DIR,
     EXPECTED_FILES,
+    INSTALL_MULTIPLAYER_DIR,
     INSTALL_SINGLE_PLAYER_DIR,
+    NQUAKE_INI_URL,
     RERELEASE_DIR,
     STEAMCMD_DIR,
 )
 from .console import byte_bar, mb
+from .net import fetch
 from .steamcmd import PROGRESS_RE, SUCCESS_RE, print_tail, run_captured
 
 
@@ -100,7 +107,136 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
     sys.exit("Could not download Quake with steamcmd")
 
 
-def install_game_data() -> None:
+def _download_nquake_mirror(staging: Path) -> str:
+    """Download the package manifest and select its first usable mirror."""
+    manifest = staging / "nquake.ini"
+    print("    Downloading nQuake package locations")
+    fetch(NQUAKE_INI_URL, manifest)
+    config = configparser.ConfigParser(interpolation=None)
+    try:
+        config.read(manifest, encoding="utf-8-sig")
+    except (configparser.Error, UnicodeError) as error:
+        sys.exit(f"Invalid nQuake package locations: {error}")
+
+    mirrors = config["mirror_addresses"] if config.has_section("mirror_addresses") else {}
+    for url in mirrors.values():
+        address = urlsplit(url)
+        if address.scheme in ("https", "http", "ftp") and address.netloc:
+            return url.rstrip("/")
+    sys.exit("No download mirrors found in nquake.ini")
+
+
+def _extract_nquake_package(download: Path, content: Path) -> None:
+    """Extract safe package paths, excluding engines and replacement game data."""
+    # Steam supplies both PAKs and the registered maps; ezQuake is installed
+    # separately. Do not extract the bundled engine or shareware replacements.
+    excluded = {
+        "id1/pak0.pak", "id1/pak1.pak", "id1/gpl_maps.pk3", "id1/readme.txt",
+        "ezquake.exe", "ezquake/sb/wget.exe", "x86.zip", "x64.zip",
+    }
+    try:
+        with zipfile.ZipFile(download) as archive:
+            for info in archive.infolist():
+                relative = Path(info.filename.replace("\\", "/"))
+                if relative.is_absolute() or ".." in relative.parts or ":" in info.filename:
+                    sys.exit(f"Unsafe path in {download.name}: {info.filename}")
+                if relative.as_posix().lower() in excluded:
+                    continue
+                destination = content / relative
+                if info.is_dir():
+                    destination.mkdir(parents=True, exist_ok=True)
+                else:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(info) as source, destination.open("wb") as output:
+                        shutil.copyfileobj(source, output)
+    except (OSError, zipfile.BadZipFile, RuntimeError) as error:
+        sys.exit(f"Could not extract nQuake {download.name}: {error}")
+
+
+def _stage_nquake_packages(staging: Path, mirror: str) -> Path:
+    """Download and extract every package before touching installed files."""
+    packages = (
+        "gpl.zip",
+        "non-gpl.zip",
+        "addon-clanarena.zip",
+        "addon-fortress.zip",
+        "addon-textures.zip",
+    )
+    content = staging / "content"
+    content.mkdir()
+    for name in packages:
+        print(f"    Downloading nQuake {name}")
+        download = staging / name
+        fetch(f"{mirror}/{name}", download)
+        _extract_nquake_package(download, content)
+        download.unlink()
+    return content
+
+
+def _install_nquake_files(content: Path) -> tuple[int, int]:
+    """Merge staged files, preserving settings and saves; return count and bytes."""
+    count = size = 0
+    root = INSTALL_MULTIPLAYER_DIR.resolve()
+    for source in content.rglob("*"):
+        destination = INSTALL_MULTIPLAYER_DIR / source.relative_to(content)
+        if not destination.resolve().is_relative_to(root):
+            sys.exit(f"nQuake destination is outside the install directory: {destination}")
+        if source.is_dir():
+            destination.mkdir(parents=True, exist_ok=True)
+            continue
+        # Keep user settings and saves when installing again.
+        if source.suffix.lower() in (".cfg", ".sav") and destination.exists():
+            continue
+        if os.name != "nt" and source.suffix.lower() in (".cfg", ".txt"):
+            source.write_bytes(source.read_bytes().replace(b"\r\n", b"\n"))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        size += source.stat().st_size
+        os.replace(source, destination)
+        count += 1
+    return count, size
+
+
+def install_nquake_game_data() -> None:
+    """Install nQuake's base files and all three addons without prompting."""
+    INSTALL_MULTIPLAYER_DIR.mkdir(parents=True, exist_ok=True)
+    # Temporary ZIPs and extracted files are removed even if staging fails.
+    with tempfile.TemporaryDirectory(
+        prefix=".nquake-", dir=INSTALL_MULTIPLAYER_DIR
+    ) as tmp:
+        staging = Path(tmp)
+        mirror = _download_nquake_mirror(staging)
+        content = _stage_nquake_packages(staging, mirror)
+        count, size = _install_nquake_files(content)
+        print(f"    ✔ nQuake: {count} files, {mb(size)} in {INSTALL_MULTIPLAYER_DIR}")
+
+
+def install_multiplayer_game_data() -> None:
+    """Install the original Quake PAKs, nQuake base files and multiplayer addons."""
+    source = DOWNLOAD_DIR / "id1"
+    expected = ("pak0.pak", "pak1.pak")
+    # Steam's original data uses uppercase names; accept either case, but
+    # install lowercase names so ezQuake also finds them on Linux.
+    files = {
+        path.name.lower(): path for path in source.iterdir() if path.is_file()
+    } if source.is_dir() else {}
+    missing = [f"id1/{name}" for name in expected if name not in files]
+    if missing:
+        sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
+
+    size = sum(files[name].stat().st_size for name in expected)
+    # Leave the Steam download intact if fetching the nQuake packages fails.
+    install_nquake_game_data()
+    destination = INSTALL_MULTIPLAYER_DIR / "id1"
+    destination.mkdir(parents=True, exist_ok=True)
+
+    # Replace only the game archives, preserving existing saves and configs.
+    for name in expected:
+        os.replace(files[name], destination / name)
+
+    print(f"    ✔ {len(expected)} files, {mb(size)} in {INSTALL_MULTIPLAYER_DIR}")
+
+
+def install_single_player_game_data() -> None:
     """Move the downloaded game data into the install directory."""
     missing = [f for f in EXPECTED_FILES if not (RERELEASE_DIR / f).exists()]
     if missing:
