@@ -162,7 +162,7 @@ def install_vkquake_assets() -> None:
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
-    icon = {"Windows": "quake.ico", "Darwin": "quake.png"}.get(system, "quake.svg")
+    icon = {"Windows": "vkQuake.ico", "Darwin": "vkQuake.png"}.get(system, "vkQuake.svg")
     assets = (
         (f"scripts/vkQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),

@@ -1,6 +1,6 @@
 # Template: replace the absolute paths in Exec, Path and Icon before installing.
 # launcher.py must be installed beside ezQuake-x86_64.AppImage and the id1 directory.
-# Use assets/icons/ezquake.svg as the icon. Do not use ~ or $HOME in these paths.
+# Use assets/icons/ezQuake.svg as the icon. Do not use ~ or $HOME in these paths.
 # Copy the customized file to ~/.local/share/applications/ for the application menu.
 
 [Desktop Entry]
@@ -9,7 +9,7 @@ Name=Quake Multiplayer (ezQuake Port)
 Comment=Play Quake with ezQuake
 Exec=python3 "/absolute/path/to/ezQuake/launcher.py"
 Path=/absolute/path/to/ezQuake
-Icon=/absolute/path/to/ezquake.svg
+Icon=/absolute/path/to/ezQuake.svg
 TryExec=python3
 # Keep a terminal available for the initial setup wizard and launch errors.
 Terminal=true

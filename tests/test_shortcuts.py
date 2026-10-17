@@ -27,7 +27,7 @@ class ShortcutTests(unittest.TestCase):
     other_shortcut = shortcuts.EZQUAKE_SHORTCUT
     name = "Quake Single Player (vkQuake Port)"
     desktop = "vkQuake.desktop"
-    icon = "quake"
+    icon = "vkQuake"
     bundle_id = "com.quakebundle.singleplayer"
     installer = singleplayer
     install_directory = "INSTALL_SINGLE_PLAYER_DIR"
@@ -299,7 +299,7 @@ class EzQuakeShortcutTests(ShortcutTests):
     other_shortcut = shortcuts.VKQUAKE_SHORTCUT
     name = "Quake Multiplayer (ezQuake Port)"
     desktop = "ezQuake.desktop"
-    icon = "ezquake"
+    icon = "ezQuake"
     bundle_id = "com.quakebundle.multiplayer"
     installer = multiplayer
     install_directory = "INSTALL_MULTIPLAYER_DIR"

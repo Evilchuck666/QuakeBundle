@@ -176,7 +176,7 @@ def install_ezquake_assets() -> None:
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
-    icon = {"Windows": "ezquake.ico", "Darwin": "ezquake.png"}.get(system, "ezquake.svg")
+    icon = {"Windows": "ezQuake.ico", "Darwin": "ezQuake.png"}.get(system, "ezQuake.svg")
     assets = (
         (f"scripts/ezQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),

@@ -66,13 +66,13 @@ shortcut named **Quake Single Player (vkQuake Port)**:
 
 | Platform | Shortcut | Target and icon |
 | --- | --- | --- |
-| GNU/Linux | `~/.local/share/applications/vkQuake.desktop` | `launcher.py`, `quake.svg` |
-| Windows | User's Desktop, including redirected/OneDrive desktops | `launcher.exe`, `quake.ico` |
-| macOS | `~/Applications/Quake Single Player (vkQuake Port).app` | Automator runs `launcher.py`, with `quake.png` as its custom icon |
+| GNU/Linux | `~/.local/share/applications/vkQuake.desktop` | `launcher.py`, `vkQuake.svg` |
+| Windows | User's Desktop, including redirected/OneDrive desktops | `launcher.exe`, `vkQuake.ico` |
+| macOS | `~/Applications/Quake Single Player (vkQuake Port).app` | Automator runs `launcher.py`, with `vkQuake.png` as its custom icon |
 
 `multiplayer.py` creates **Quake Multiplayer (ezQuake Port)** using
 `ezQuake.desktop` on Linux, a separate `.lnk` on Windows and a separate `.app`
-on macOS. Its icons are `ezquake.svg`, `ezquake.ico` and `ezquake.png`,
+on macOS. Its icons are `ezQuake.svg`, `ezQuake.ico` and `ezQuake.png`,
 respectively. Both engines' shortcuts can coexist; reinstalling either one
 preserves the other's shortcut.
 

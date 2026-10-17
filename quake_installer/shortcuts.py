@@ -26,13 +26,13 @@ class Shortcut:
 VKQUAKE_SHORTCUT = Shortcut(
     engine="vkQuake",
     name="Quake Single Player (vkQuake Port)",
-    icon="quake",
+    icon="vkQuake",
     bundle_id="com.quakebundle.singleplayer",
 )
 EZQUAKE_SHORTCUT = Shortcut(
     engine="ezQuake",
     name="Quake Multiplayer (ezQuake Port)",
-    icon="ezquake",
+    icon="ezQuake",
     bundle_id="com.quakebundle.multiplayer",
 )
 AUTOMATOR_STUB = Path(

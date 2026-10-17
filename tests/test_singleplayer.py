@@ -152,9 +152,9 @@ class VkQuakeAssetTests(unittest.TestCase):
     def test_downloads_assets_into_install_directory(self):
         """Install the platform's launcher and icon from direct GitHub URLs."""
         for system, launcher, icon in (
-            ("Linux", "launcher.py", "quake.svg"),
-            ("Windows", "launcher.exe", "quake.ico"),
-            ("Darwin", "launcher.py", "quake.png"),
+            ("Linux", "launcher.py", "vkQuake.svg"),
+            ("Windows", "launcher.exe", "vkQuake.ico"),
+            ("Darwin", "launcher.py", "vkQuake.png"),
         ):
             with self.subTest(system=system):
                 self.system.return_value = system
@@ -192,14 +192,14 @@ class VkQuakeAssetTests(unittest.TestCase):
     def test_failed_download_preserves_existing_assets_and_removes_temporary_files(self):
         """A partial download must not overwrite an existing installation."""
         self.install.mkdir()
-        names = ("launcher.py", "quake.svg")
+        names = ("launcher.py", "vkQuake.svg")
         for name in names:
             (self.install / name).write_bytes(b"previous version")
 
         def failing_fetch(url, destination):
             del url
             destination.write_bytes(b"new content")
-            if destination.name == "quake.svg":
+            if destination.name == "vkQuake.svg":
                 raise OSError("download interrupted")
 
         with (

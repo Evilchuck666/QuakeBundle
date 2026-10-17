@@ -1,6 +1,6 @@
 # Template: replace the absolute paths in Exec, Path and Icon before installing.
 # launcher.py must be installed beside vkQuake.AppImage and the id1 directory.
-# Use assets/icons/quake.svg as the icon. Do not use ~ or $HOME in these paths.
+# Use assets/icons/vkQuake.svg as the icon. Do not use ~ or $HOME in these paths.
 # Copy the customized file to ~/.local/share/applications/ for the application menu.
 
 [Desktop Entry]
@@ -9,7 +9,7 @@ Name=Quake Single Player (vkQuake Port)
 Comment=Play Quake with vkQuake
 Exec=python3 "/absolute/path/to/vkQuake/launcher.py"
 Path=/absolute/path/to/vkQuake
-Icon=/absolute/path/to/quake.svg
+Icon=/absolute/path/to/vkQuake.svg
 TryExec=python3
 # Keep a terminal available for the initial setup wizard and launch errors.
 Terminal=true
