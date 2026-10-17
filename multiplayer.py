@@ -77,6 +77,8 @@ try:
     )
     from quake_installer.gamedata import (
         clean_up as _clean_up_downloads,
+    )
+    from quake_installer.gamedata import (
         download_quake,
         install_multiplayer_game_data,
     )
