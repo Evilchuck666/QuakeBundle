@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -75,7 +76,7 @@ try:
         install_ezquake_mac,
     )
     from quake_installer.gamedata import (
-        clean_up,
+        clean_up as _clean_up_downloads,
         download_quake,
         install_multiplayer_game_data,
     )
@@ -150,6 +151,22 @@ __all__ = [
     "update_steamcmd",
     "user_data_dir",
 ]
+
+
+def clean_up() -> None:
+    """Remove downloads and the bundled ezQuake configs and documentation."""
+    _clean_up_downloads()
+    root = INSTALL_MULTIPLAYER_DIR / "ezquake"
+    for name in ("configs", "gnu.txt", "Online Manual.url"):
+        path = root / name
+        try:
+            if name == "configs" and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except FileNotFoundError:
+            continue
+        print(f"    Removed {path}")
 
 
 def install_ezquake_assets() -> None:
