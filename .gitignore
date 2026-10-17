@@ -1,5 +1,6 @@
 assets/scripts/vkQuake/__pycache__/*
 assets/scripts/ezQuake/__pycache__/*
+quake_installer/__pycache__/*
 tests/__pycache__/*
 __pycache__/*
 *.zip
