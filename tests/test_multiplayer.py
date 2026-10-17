@@ -14,6 +14,7 @@ class MultiplayerCleanupTests(unittest.TestCase):
     """Remove only the requested ezQuake files, including on repeated cleanup."""
 
     def test_cleanup_removes_configs_and_documents_and_preserves_other_files(self):
+        """Remove ezQuake configs and documents while preserving other files."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "multiplayer"
             removed = (
@@ -47,6 +48,7 @@ class MultiplayerCleanupTests(unittest.TestCase):
                 self.assertEqual(downloads.call_count, 2)
 
     def test_cleanup_without_ezquake_does_not_create_directories(self):
+        """Leave the installation directory absent when ezQuake is missing."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "multiplayer"
             with (
