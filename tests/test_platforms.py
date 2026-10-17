@@ -639,7 +639,7 @@ class EzQuakeInstallTests(unittest.TestCase):
         asset = release_asset("ezQuake-linux-x86_64.zip")
 
         for corrupt in (True, False):
-            def download(_url, path):
+            def download(_url, path, corrupt=corrupt):
                 if corrupt:
                     path.write_bytes(b"invalid zip")
                 else:
