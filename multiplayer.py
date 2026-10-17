@@ -159,7 +159,7 @@ def clean_up() -> None:
     """Remove downloads and the bundled ezQuake configs and documentation."""
     _clean_up_downloads()
     root = INSTALL_MULTIPLAYER_DIR / "ezquake"
-    for name in ("configs", "gnu.txt", "Online Manual.url"):
+    for name in ("configs", "temp", "gnu.txt", "Online Manual.url"):
         path = root / name
         try:
             if name == "configs" and not path.is_symlink():
