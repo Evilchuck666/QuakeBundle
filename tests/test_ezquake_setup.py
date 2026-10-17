@@ -19,7 +19,7 @@ from urllib.error import URLError
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "assets" / "scripts" / "ezQuake"
-CONFIGS = ROOT / "assets" / "cfg" / "ezquake"
+CONFIGS = ROOT / "assets" / "cfg" / "ezQuake"
 SPEC = importlib.util.spec_from_file_location("ezquake_launcher", SCRIPTS / "launcher.py")
 launcher = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(launcher)
@@ -181,7 +181,7 @@ class WizardTests(unittest.TestCase):
         for call, name in zip(self.download.call_args_list, launcher.CONFIG_FILES):
             self.assertEqual(call.args, (launcher.CONFIG_BASE_URL + name,))
             self.assertEqual(call.kwargs, {"timeout": 30})
-        self.assertTrue(launcher.CONFIG_BASE_URL.endswith("/assets/cfg/ezquake/"))
+        self.assertTrue(launcher.CONFIG_BASE_URL.endswith("/assets/cfg/ezQuake/"))
 
     def test_missing_game_config_preserves_player_and_other_user_files_by_default(self):
         """Default recovery downloads only missing files and keeps personal setup."""

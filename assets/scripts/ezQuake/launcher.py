@@ -25,7 +25,7 @@ from xml.parsers.expat import ExpatError
 
 CONFIG_FILES = ("autoexec.cfg", "game.cfg", "player.cfg")
 CONFIG_BASE_URL = (
-    "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/ezquake/"
+    "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/ezQuake/"
 )
 
 NEEDS_SETUP = 2
