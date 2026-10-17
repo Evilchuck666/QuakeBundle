@@ -86,6 +86,7 @@ try:
         open_url,
     )
     from quake_installer.shortcuts import (
+        EZQUAKE_SHORTCUT,
         create_linux_shortcut,
         create_macos_shortcut,
         create_windows_shortcut,
@@ -187,11 +188,11 @@ def install_ezquake_shortcut() -> None:
     root = INSTALL_MULTIPLAYER_DIR.resolve()
     python = Path(sys.executable).absolute()
     if system == "Linux":
-        destination = create_linux_shortcut(root, python, fetch)
+        destination = create_linux_shortcut(root, python, fetch, EZQUAKE_SHORTCUT)
     elif system == "Windows":
-        destination = create_windows_shortcut(root)
+        destination = create_windows_shortcut(root, EZQUAKE_SHORTCUT)
     elif system == "Darwin":
-        destination = create_macos_shortcut(root, python)
+        destination = create_macos_shortcut(root, python, EZQUAKE_SHORTCUT)
     else:
         raise OSError(f"Unsupported shortcut platform: {system}")
     print(f"    ✔ Created {destination}")

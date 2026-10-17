@@ -9,12 +9,31 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
-SHORTCUT_NAME = "Quake Single Player (vkQuake Port)"
-DESKTOP_URL = (
-    "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/"
-    "assets/links/vkQuake.desktop"
+
+@dataclass(frozen=True)
+class Shortcut:
+    """Engine-specific names and assets shared by the platform helpers."""
+
+    engine: str
+    name: str
+    icon: str
+    bundle_id: str
+
+
+VKQUAKE_SHORTCUT = Shortcut(
+    engine="vkQuake",
+    name="Quake Single Player (vkQuake Port)",
+    icon="quake",
+    bundle_id="com.quakebundle.singleplayer",
+)
+EZQUAKE_SHORTCUT = Shortcut(
+    engine="ezQuake",
+    name="Quake Multiplayer (ezQuake Port)",
+    icon="ezquake",
+    bundle_id="com.quakebundle.multiplayer",
 )
 AUTOMATOR_STUB = Path(
     "/System/Library/CoreServices/Automator Application Stub.app/Contents/MacOS/"
@@ -36,19 +55,23 @@ def desktop_argument(value):
     return desktop_value('"' + value + '"')
 
 
-def create_linux_shortcut(root, python, fetch):
+def create_linux_shortcut(root, python, fetch, shortcut: Shortcut):
     """Download and customize the template, then atomically publish it."""
     directory = Path.home() / ".local/share/applications"
     directory.mkdir(parents=True, exist_ok=True)
-    destination = directory / "vkQuake.desktop"
-    with tempfile.TemporaryDirectory(prefix=".vkquake-shortcut-", dir=directory) as tmp:
+    destination = directory / f"{shortcut.engine}.desktop"
+    url = ("https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/"
+           f"assets/links/{destination.name}")
+    with tempfile.TemporaryDirectory(prefix=".quake-shortcut-", dir=directory) as tmp:
         staged = Path(tmp) / destination.name
-        fetch(DESKTOP_URL, staged)
+        fetch(url, staged)
         replacements = {
+            "Name": desktop_value(shortcut.name),
+            "Comment": desktop_value(f"Play Quake with {shortcut.engine}"),
             "Exec": f"{desktop_argument(python)} {desktop_argument(root / 'launcher.py')}",
             "TryExec": desktop_value(python),
             "Path": desktop_value(root),
-            "Icon": desktop_value(root / "quake.svg"),
+            "Icon": desktop_value(root / f"{shortcut.icon}.svg"),
             "Terminal": "true",
         }
         lines, found, section = [], set(), ""
@@ -58,12 +81,12 @@ def create_linux_shortcut(root, python, fetch):
             key = line.partition("=")[0]
             if section == "[Desktop Entry]" and key in replacements:
                 if key in found:
-                    raise OSError(f"Duplicate {key} in vkQuake.desktop template")
+                    raise OSError(f"Duplicate {key} in {destination.name} template")
                 found.add(key)
                 line = f"{key}={replacements[key]}"
             lines.append(line)
         if found != replacements.keys():
-            raise OSError("Incomplete vkQuake.desktop template")
+            raise OSError(f"Incomplete {destination.name} template")
         staged.write_text("\n".join(lines) + "\n", encoding="utf-8")
         staged.chmod(0o644)
         staged.replace(destination)
@@ -82,7 +105,7 @@ try {
     $link = $shell.CreateShortcut($staged)
     $link.TargetPath = Join-Path $env:QUAKE_SHORTCUT_ROOT 'launcher.exe'
     $link.WorkingDirectory = $env:QUAKE_SHORTCUT_ROOT
-    $link.IconLocation = (Join-Path $env:QUAKE_SHORTCUT_ROOT 'quake.ico') + ',0'
+    $link.IconLocation = $env:QUAKE_SHORTCUT_ICON + ',0'
     $link.Description = $env:QUAKE_SHORTCUT_NAME
     $link.Save()
     if (Test-Path -LiteralPath $destination) {
@@ -107,12 +130,13 @@ def run_native(command, **kwargs):
         raise OSError(f"{command[0]} failed: {detail}") from error
 
 
-def create_windows_shortcut(root):
+def create_windows_shortcut(root, shortcut: Shortcut):
     """Use Windows' actual Desktop location, including redirected desktops."""
     encoded = base64.b64encode(WINDOWS_SHORTCUT_SCRIPT.encode("utf-16le")).decode("ascii")
     result = run_native(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-        env=dict(os.environ, QUAKE_SHORTCUT_ROOT=str(root), QUAKE_SHORTCUT_NAME=SHORTCUT_NAME),
+        env=dict(os.environ, QUAKE_SHORTCUT_ROOT=str(root), QUAKE_SHORTCUT_NAME=shortcut.name,
+                 QUAKE_SHORTCUT_ICON=str(root / f"{shortcut.icon}.ico")),
     )
     destination = Path(result.stdout.strip())
     if not result.stdout.strip() or not destination.is_file():
@@ -162,7 +186,7 @@ def build_macos_workflow(root, python):
     }
 
 
-def build_macos_application(staged, root, python):
+def build_macos_application(staged, root, python, shortcut: Shortcut):
     """Write the Automator executable, application metadata and workflow."""
     contents = staged / "Contents"
     executable = contents / "MacOS/Automator Application Stub"
@@ -171,9 +195,9 @@ def build_macos_application(staged, root, python):
     executable.chmod(0o755)
     info = {
         "CFBundleExecutable": executable.name,
-        "CFBundleIdentifier": "com.quakebundle.singleplayer",
-        "CFBundleName": SHORTCUT_NAME,
-        "CFBundleDisplayName": SHORTCUT_NAME,
+        "CFBundleIdentifier": shortcut.bundle_id,
+        "CFBundleName": shortcut.name,
+        "CFBundleDisplayName": shortcut.name,
         "CFBundlePackageType": "APPL",
         "CFBundleVersion": "1",
         "LSUIElement": True,
@@ -199,15 +223,15 @@ def publish_macos_application(staged, destination):
         raise
 
 
-def create_macos_shortcut(root, python):
+def create_macos_shortcut(root, python, shortcut: Shortcut):
     """Prepare, validate and publish an Automator application with its PNG icon."""
     directory = Path.home() / "Applications"
     directory.mkdir(parents=True, exist_ok=True)
-    destination = directory / (SHORTCUT_NAME + ".app")
-    with tempfile.TemporaryDirectory(prefix=".vkquake-shortcut-", dir=directory) as tmp:
+    destination = directory / (shortcut.name + ".app")
+    with tempfile.TemporaryDirectory(prefix=".quake-shortcut-", dir=directory) as tmp:
         staged = Path(tmp) / destination.name
-        build_macos_application(staged, root, python)
+        build_macos_application(staged, root, python, shortcut)
         run_native(["/usr/bin/osascript", "-l", "JavaScript", "-e", MACOS_VALIDATE_AND_ICON,
-                    str(staged), str(root / "quake.png")])
+                    str(staged), str(root / f"{shortcut.icon}.png")])
         publish_macos_application(staged, destination)
     return destination

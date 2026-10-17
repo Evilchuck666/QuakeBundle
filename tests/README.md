@@ -70,6 +70,12 @@ shortcut named **Quake Single Player (vkQuake Port)**:
 | Windows | User's Desktop, including redirected/OneDrive desktops | `launcher.exe`, `quake.ico` |
 | macOS | `~/Applications/Quake Single Player (vkQuake Port).app` | Automator runs `launcher.py`, with `quake.png` as its custom icon |
 
+`multiplayer.py` creates **Quake Multiplayer (ezQuake Port)** using
+`ezQuake.desktop` on Linux, a separate `.lnk` on Windows and a separate `.app`
+on macOS. Its icons are `ezquake.svg`, `ezquake.ico` and `ezquake.png`,
+respectively. Both engines' shortcuts can coexist; reinstalling either one
+preserves the other's shortcut.
+
 Linux downloads the repository's desktop template and sets absolute paths,
 keeping a terminal available for setup. Linux and macOS shortcuts retain the
 Python executable used to run the installer; that Python installation must

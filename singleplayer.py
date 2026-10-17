@@ -84,6 +84,7 @@ try:
         open_url,
     )
     from quake_installer.shortcuts import (
+        VKQUAKE_SHORTCUT,
         create_linux_shortcut,
         create_macos_shortcut,
         create_windows_shortcut,
@@ -192,11 +193,11 @@ def install_vkquake_shortcut() -> None:
     root = INSTALL_SINGLE_PLAYER_DIR.resolve()
     python = Path(sys.executable).absolute()
     if system == "Linux":
-        destination = create_linux_shortcut(root, python, fetch)
+        destination = create_linux_shortcut(root, python, fetch, VKQUAKE_SHORTCUT)
     elif system == "Windows":
-        destination = create_windows_shortcut(root)
+        destination = create_windows_shortcut(root, VKQUAKE_SHORTCUT)
     elif system == "Darwin":
-        destination = create_macos_shortcut(root, python)
+        destination = create_macos_shortcut(root, python, VKQUAKE_SHORTCUT)
     else:
         raise OSError(f"Unsupported shortcut platform: {system}")
     print(f"    ✔ Created {destination}")
