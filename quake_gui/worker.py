@@ -159,7 +159,7 @@ class InstallWorker(QThread):
         self.log.emit("Creating game shortcut")
         destination = create_shortcut(self.edition, self.root)
         self.log.emit(f"Created shortcut: {destination}")
-        gamedata.clean_up()
+        gamedata.clean_up(keep_steamcmd=True)
 
     def run(self):
         stream = LogStream(self.log.emit)

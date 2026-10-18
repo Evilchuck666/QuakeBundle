@@ -13,7 +13,7 @@ from contextlib import ExitStack, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from quake_installer import steamcmd
+from quake_installer import gamedata, steamcmd
 
 
 def steamcmd_archive(system, filename):
@@ -53,6 +53,8 @@ class SteamcmdInstallationTests(unittest.TestCase):
                     destination.write_bytes(archive)
 
                 with patch.object(steamcmd, "STEAMCMD_DIR", directory), \
+                     patch.object(gamedata, "STEAMCMD_DIR", directory), \
+                     patch.object(gamedata, "DOWNLOAD_DIR", directory.parent / "download"), \
                      patch.object(steamcmd.platform, "system", return_value=system), \
                      patch.object(steamcmd, "fetch", side_effect=download) as fetch, \
                      redirect_stdout(io.StringIO()):
@@ -64,7 +66,17 @@ class SteamcmdInstallationTests(unittest.TestCase):
                     if os.name == "posix" and system != "Windows":
                         self.assertEqual(stat.S_IMODE(executable.stat().st_mode), 0o755)
 
-                    self.assertEqual(steamcmd.install_steamcmd(), executable)
+                    session = directory / "config" / "config.vdf"
+                    session.parent.mkdir()
+                    session.write_bytes(b"synthetic Steam session")
+                    for _ in range(2):
+                        gamedata.DOWNLOAD_DIR.mkdir()
+                        (gamedata.DOWNLOAD_DIR / "temporary.pak").write_bytes(b"download")
+                        gamedata.clean_up(keep_steamcmd=True)
+                        self.assertFalse(gamedata.DOWNLOAD_DIR.exists())
+                        self.assertEqual(executable.read_bytes(), payload)
+                        self.assertEqual(session.read_bytes(), b"synthetic Steam session")
+                        self.assertEqual(steamcmd.install_steamcmd(), executable)
                     self.assertEqual(fetch.call_count, 1)
 
     def test_rejects_unsupported_platform_without_downloading(self):

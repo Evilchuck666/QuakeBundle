@@ -27,7 +27,7 @@ APP_ID = 2310
 BASE_DIR = user_data_dir() / "quake"
 INSTALL_SINGLE_PLAYER_DIR = BASE_DIR / "singleplayer"
 INSTALL_MULTIPLAYER_DIR = BASE_DIR / "multiplayer"
-STEAMCMD_DIR = BASE_DIR / "steamcmd"
+STEAMCMD_DIR = user_data_dir() / "steamcmd"
 
 # steamcmd downloads the whole Steam install here. Single-player keeps the
 # re-release game folders; multiplayer keeps the original id1 PAKs.

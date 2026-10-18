@@ -305,8 +305,9 @@ def install_single_player_game_data(install_dir: Path | None = None) -> None:
     print(f"    ✔ {count} files, {mb(size)} in {install_dir}")
 
 
-def clean_up() -> None:
-    """Remove the temporary download and steamcmd directories."""
-    for path in (DOWNLOAD_DIR, STEAMCMD_DIR):
+def clean_up(*, keep_steamcmd: bool = False) -> None:
+    """Remove downloaded game data, optionally retaining SteamCMD for reuse."""
+    paths = (DOWNLOAD_DIR,) if keep_steamcmd else (DOWNLOAD_DIR, STEAMCMD_DIR)
+    for path in paths:
         shutil.rmtree(path, ignore_errors=True)
         print(f"    Removed {path}")

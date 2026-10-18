@@ -183,7 +183,7 @@ class DesktopQtTests(unittest.TestCase):
                 download.assert_called_once_with(self.root / "steamcmd", "account", 3)
                 data.assert_called_once_with(root)
                 engine.assert_called_once_with(root)
-                cleanup.assert_called_once()
+                cleanup.assert_called_once_with(keep_steamcmd=True)
                 shortcut = (
                     self.root / ".local/share/applications" / f"{edition.engine}.desktop"
                 ).read_text(encoding="utf-8")

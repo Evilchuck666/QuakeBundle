@@ -33,6 +33,13 @@ incluidos en el paquete. La contraseña y Steam Guard se solicitan en la ventana
 y se envían por la entrada del proceso, nunca como argumentos. QuakeBundle no
 los guarda ni registra; SteamCMD puede conservar su propia sesión de Steam.
 
+La GUI conserva SteamCMD entre instalaciones y lo reutiliza para ambas ediciones,
+comprobando sus actualizaciones antes de usarlo. Se instala en
+`~/.local/share/steamcmd` en Linux (o bajo `XDG_DATA_HOME` si está definido),
+`%LOCALAPPDATA%/steamcmd` en Windows y
+`~/Library/Application Support/steamcmd` en macOS. Al terminar, la limpieza
+elimina los datos temporales descargados del juego y conserva SteamCMD.
+
 En una instalación reconocida, **Jugar** funciona sin autenticarse de nuevo y
 permite elegir las expansiones presentes. Los ajustes se guardan en los archivos
 del juego. La carpeta y el nombre de usuario se recuerdan con QSettings.
