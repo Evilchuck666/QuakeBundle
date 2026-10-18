@@ -139,13 +139,13 @@ class DesktopProcessTests(unittest.TestCase):
 
             def answer(prompt):
                 prompts.append(prompt)
-                return "very-secret" if "Contraseña" in prompt else "12345"
+                return "very-secret" if "password" in prompt else "12345"
 
             with patch.object(interactive, "run_process", side_effect=run):
                 interactive.login(
                     script, "account", root, answer, lambda: None, messages.append
                 )
-            self.assertEqual(prompts, ["Contraseña de Steam", "Código de Steam Guard"])
+            self.assertEqual(prompts, ["Steam password", "Steam Guard code"])
             self.assertNotIn("very-secret", " ".join(messages))
             self.assertNotIn("12345", " ".join(messages))
 
@@ -170,7 +170,7 @@ class DesktopProcessTests(unittest.TestCase):
                 lambda: None,
                 lambda _: None,
             )
-        self.assertEqual(prompts, ["Código de Steam Guard"])
+        self.assertEqual(prompts, ["Steam Guard code"])
 
     def test_cancellation_reaps_a_silent_child(self):
         started = time.monotonic()

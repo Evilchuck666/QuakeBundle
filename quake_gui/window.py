@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         header = QHBoxLayout()
         header.addWidget(label("Q  /  QUAKEBUNDLE", "eyebrow"))
         header.addStretch()
-        header.addWidget(label("TU PUERTA A QUAKE", "muted"))
+        header.addWidget(label("YOUR GATEWAY TO QUAKE", "muted"))
         outer.addLayout(header)
 
         columns = QHBoxLayout()
@@ -158,15 +158,15 @@ class MainWindow(QMainWindow):
 
         hero = QHBoxLayout()
         words = QVBoxLayout()
-        words.addWidget(label("EL CLÁSICO. A TU MANERA.", "eyebrow"))
-        words.addWidget(label("Vuelve al origen.", "heading"))
+        words.addWidget(label("THE CLASSIC. YOUR WAY.", "eyebrow"))
+        words.addWidget(label("Back to the beginning.", "heading"))
         words.addWidget(
-            label("Dos formas de jugar. Una sola puerta de entrada.", "muted", True)
+            label("Two ways to play. One gateway.", "muted", True)
         )
         hero.addLayout(words, 1)
         hero.addWidget(Gate())
         left.addLayout(hero)
-        left.addWidget(label("01   Elige tu experiencia", "section"))
+        left.addWidget(label("01   Choose your experience", "section"))
         editions = QHBoxLayout()
         self.edition_group = QButtonGroup(self)
         self.edition_buttons = {}
@@ -192,36 +192,36 @@ class MainWindow(QMainWindow):
         form = QVBoxLayout(self.form)
         form.setContentsMargins(20, 18, 20, 18)
         form.setSpacing(12)
-        form.addWidget(label("02   Prepara tu partida", "section"))
-        form.addWidget(label("Carpeta del juego", "muted"))
+        form.addWidget(label("02   Set up your game", "section"))
+        form.addWidget(label("Game folder", "muted"))
         row = QHBoxLayout()
         self.directory = QLineEdit()
-        self.directory.setAccessibleName("Carpeta del juego")
+        self.directory.setAccessibleName("Game folder")
         self.directory.editingFinished.connect(self.directory_changed)
         row.addWidget(self.directory, 1)
-        browse = QPushButton("Explorar…")
+        browse = QPushButton("Browse…")
         browse.clicked.connect(self.browse)
         row.addWidget(browse)
         form.addLayout(row)
         grid = QGridLayout()
         grid.setHorizontalSpacing(16)
         self.username = QLineEdit(str(self.settings.value("username", "")))
-        self.username.setPlaceholderText("Tu cuenta de Steam")
-        self.username.setAccessibleName("Usuario de Steam")
+        self.username.setPlaceholderText("Your Steam account")
+        self.username.setAccessibleName("Steam username")
         self.username.setToolTip(
-            "La cuenta debe tener Quake. La contraseña se solicitará al conectar."
+            "The account must own Quake. You will be asked for your password when connecting."
         )
         self.player_name = QLineEdit("Player")
         self.player_name.setMaxLength(64)
-        self.player_name.setAccessibleName("Nombre del jugador")
-        grid.addWidget(label("Usuario de Steam", "muted"), 0, 0)
-        grid.addWidget(label("Nombre del jugador", "muted"), 0, 1)
+        self.player_name.setAccessibleName("Player name")
+        grid.addWidget(label("Steam username", "muted"), 0, 0)
+        grid.addWidget(label("Player name", "muted"), 0, 1)
         grid.addWidget(self.username, 1, 0)
         grid.addWidget(self.player_name, 1, 1)
         form.addLayout(grid)
 
         advanced = QToolButton()
-        advanced.setText("Ajustes del jugador")
+        advanced.setText("Player settings")
         advanced.setCheckable(True)
         advanced.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         advanced.setArrowType(Qt.ArrowType.RightArrow)
@@ -232,14 +232,14 @@ class MainWindow(QMainWindow):
         options.setContentsMargins(0, 0, 0, 0)
         self.sensitivity = QLineEdit("3")
         self.sensitivity.setValidator(SensitivityValidator(self.sensitivity))
-        self.sensitivity.setAccessibleName("Sensibilidad del ratón")
+        self.sensitivity.setAccessibleName("Mouse sensitivity")
         self.team = QLineEdit()
         self.fakename = QLineEdit()
-        self.team.setAccessibleName("Equipo")
+        self.team.setAccessibleName("Team")
         self.fakename.setAccessibleName("Alias")
-        options.addWidget(label("Sensibilidad", "muted"), 0, 0)
+        options.addWidget(label("Sensitivity", "muted"), 0, 0)
         options.addWidget(self.sensitivity, 1, 0)
-        self.team_label = label("Equipo · ezQuake", "muted")
+        self.team_label = label("Team · ezQuake", "muted")
         self.fake_label = label("Alias · ezQuake", "muted")
         options.addWidget(self.team_label, 0, 1)
         options.addWidget(self.team, 1, 1)
@@ -255,7 +255,7 @@ class MainWindow(QMainWindow):
         form.addWidget(self.advanced)
         form.addWidget(
             label(
-                "Necesitas una cuenta de Steam con Quake para instalarlo.",
+                "You need a Steam account that owns Quake to install it.",
                 "muted",
                 True,
             )
@@ -263,16 +263,16 @@ class MainWindow(QMainWindow):
         left.addWidget(self.form)
 
         actions = QHBoxLayout()
-        self.install_button = QPushButton("Instalar campaña")
+        self.install_button = QPushButton("Install campaign")
         self.install_button.setObjectName("primary")
         self.install_button.clicked.connect(self.start_install)
         actions.addWidget(self.install_button, 1)
-        self.play_button = QPushButton("▶  Jugar")
+        self.play_button = QPushButton("▶  Play")
         self.play_button.clicked.connect(self.play)
         actions.addWidget(self.play_button)
         left.addLayout(actions)
         self.mods = QComboBox()
-        self.mods.setAccessibleName("Juego o expansión")
+        self.mods.setAccessibleName("Game or expansion")
         left.addWidget(self.mods)
         self.hint = label("", "muted", True)
         left.addWidget(self.hint)
@@ -285,17 +285,17 @@ class MainWindow(QMainWindow):
         panel = QVBoxLayout(side)
         panel.setContentsMargins(20, 22, 20, 20)
         panel.setSpacing(15)
-        panel.addWidget(label("CENTRO DE ACTIVIDAD", "eyebrow"))
-        self.activity = label("Todo listo para empezar", "section", True)
+        panel.addWidget(label("ACTIVITY CENTER", "eyebrow"))
+        self.activity = label("Ready to get started", "section", True)
         panel.addWidget(self.activity)
         self.stage_labels = []
         for title in (
-            "Preparar SteamCMD",
-            "Conectar con Steam",
-            "Descargar Quake",
-            "Instalar el juego",
-            "Instalar el motor",
-            "Configurar y terminar",
+            "Prepare SteamCMD",
+            "Connect to Steam",
+            "Download Quake",
+            "Install the game",
+            "Install the engine",
+            "Configure and finish",
         ):
             item = label("○   " + title, "muted", True)
             self.stage_labels.append(item)
@@ -304,7 +304,7 @@ class MainWindow(QMainWindow):
         self.progress.setTextVisible(False)
         self.progress.setValue(0)
         panel.addWidget(self.progress)
-        self.progress_text = label("Esperando instalación", "muted", True)
+        self.progress_text = label("Waiting for installation", "muted", True)
         panel.addWidget(self.progress_text)
 
         self.auth = QWidget()
@@ -315,28 +315,28 @@ class MainWindow(QMainWindow):
         auth.addWidget(self.auth_label)
         self.secret = QLineEdit()
         self.secret.setEchoMode(QLineEdit.EchoMode.Password)
-        self.secret.setAccessibleName("Respuesta de autenticación de Steam")
+        self.secret.setAccessibleName("Steam authentication response")
         self.secret.returnPressed.connect(self.send_secret)
         auth.addWidget(self.secret)
-        send = QPushButton("Continuar")
+        send = QPushButton("Continue")
         send.clicked.connect(self.send_secret)
         auth.addWidget(send)
         auth.addWidget(
             label(
-                "Se envía a SteamCMD. QuakeBundle no guarda esta respuesta.",
+                "Sent to SteamCMD. QuakeBundle does not save this response.",
                 "muted",
                 True,
             )
         )
         panel.addWidget(self.auth)
         self.auth.hide()
-        self.cancel_button = QPushButton("Cancelar instalación")
+        self.cancel_button = QPushButton("Cancel installation")
         self.cancel_button.clicked.connect(self.cancel_install)
         self.cancel_button.hide()
         panel.addWidget(self.cancel_button)
         panel.addStretch()
         details = QToolButton()
-        details.setText("Ver registro de actividad")
+        details.setText("View activity log")
         details.setCheckable(True)
         self.logs = QPlainTextEdit()
         self.logs.setReadOnly(True)
@@ -346,12 +346,12 @@ class MainWindow(QMainWindow):
         details.toggled.connect(self.logs.setVisible)
         panel.addWidget(details)
         panel.addWidget(self.logs)
-        open_folder = QPushButton("Abrir carpeta del juego")
+        open_folder = QPushButton("Open game folder")
         open_folder.clicked.connect(self.open_folder)
         panel.addWidget(open_folder)
 
         footer = QHBoxLayout()
-        footer.addWidget(label("QUAKE  /  1996 → HOY", "muted"))
+        footer.addWidget(label("QUAKE  /  1996 → TODAY", "muted"))
         footer.addStretch()
         footer.addWidget(label("Qt6  ·  vkQuake + ezQuake", "muted"))
         outer.addLayout(footer)
@@ -395,7 +395,7 @@ class MainWindow(QMainWindow):
         ready = False
         path_error = None
         self.mods.clear()
-        self.mods.addItem("Quake · juego original", "")
+        self.mods.addItem("Quake · original game", "")
         try:
             root = self.root_path()
             ready = installed(self.edition, root)
@@ -419,24 +419,24 @@ class MainWindow(QMainWindow):
             button.setEnabled(not busy)
         self.install_button.setEnabled(not busy and path_error is None)
         self.install_button.setText(
-            "Reinstalar / actualizar"
+            "Reinstall / update"
             if ready
-            else f"Instalar {self.edition.title.lower()}"
+            else f"Install {self.edition.title.lower()}"
         )
         self.play_button.setEnabled(ready and not busy)
         self.mods.setEnabled(ready and not busy)
         self.mods.setVisible(ready)
         self.hint.setText(
-            "Instalado. Puedes jugar o actualizar el motor y los archivos del juego."
+            "Installed. You can play or update the engine and game files."
             if ready
-            else "Se descargarán el juego y su motor. Tus partidas y ajustes existentes se conservan."
+            else "The game and engine will be downloaded. Your existing saves and settings will be preserved."
         )
         if path_error:
             self.hint.setText(path_error)
 
     def browse(self):
         directory = QFileDialog.getExistingDirectory(
-            self, "Elige la carpeta del juego", self.directory.text()
+            self, "Choose the game folder", self.directory.text()
         )
         if directory:
             self.directory.setText(directory)
@@ -447,10 +447,10 @@ class MainWindow(QMainWindow):
             sensitivity = float(self.sensitivity.text().strip().replace(",", "."))
         except ValueError:
             raise ValueError(
-                "Escribe una sensibilidad numérica entre 0,01 y 1000."
+                "Enter a numeric sensitivity between 0.01 and 1000."
             ) from None
         if not math.isfinite(sensitivity) or not 0.01 <= sensitivity <= 1000:
-            raise ValueError("La sensibilidad debe estar entre 0,01 y 1000.")
+            raise ValueError("Mouse sensitivity must be between 0.01 and 1000.")
         data = {
             "name": self.player_name.text().strip(),
             "sensitivity": sensitivity,
@@ -470,7 +470,7 @@ class MainWindow(QMainWindow):
                 or any(char.isspace() or ord(char) < 32 for char in username)
             ):
                 raise ValueError(
-                    "Escribe el nombre de inicio de sesión de Steam, sin espacios."
+                    "Enter your Steam login name without spaces."
                 )
             other = EDITIONS[
                 "multiplayer" if self.edition.key == "singleplayer" else "singleplayer"
@@ -492,11 +492,11 @@ class MainWindow(QMainWindow):
                 or other_root.is_relative_to(root)
             ):
                 raise ValueError(
-                    "Usa carpetas separadas para campaña y multijugador, sin anidarlas."
+                    "Use separate folders for campaign and multiplayer, without nesting them."
                 )
             if installed(other, root):
                 raise ValueError(
-                    "Esta carpeta contiene la otra edición. Elige una carpeta diferente."
+                    "This folder contains the other edition. Choose a different folder."
                 )
             player = self.player()
         except (OSError, ValueError, ArgumentTypeError) as error:
@@ -517,7 +517,7 @@ class MainWindow(QMainWindow):
         worker.completed.connect(self.install_outcome)
         worker.finished.connect(self.install_finished)
         self.cancel_button.setEnabled(True)
-        self.cancel_button.setText("Cancelar instalación")
+        self.cancel_button.setText("Cancel installation")
         self.cancel_button.show()
         self.refresh()
         worker.start()
@@ -525,7 +525,7 @@ class MainWindow(QMainWindow):
     def set_stage(self, number, title):
         self.activity.setText(title)
         self.progress.setRange(0, 0)
-        self.progress_text.setText(f"Paso {number + 1} de 6")
+        self.progress_text.setText(f"Step {number + 1} of 6")
         for index, item in enumerate(self.stage_labels):
             text = item.text()[4:]
             item.setText(
@@ -541,31 +541,31 @@ class MainWindow(QMainWindow):
             percent = min(100, max(0, round(value / total * 100)))
             self.progress.setRange(0, 100)
             self.progress.setValue(percent)
-            self.progress_text.setText(f"{description or 'Descargando'} · {percent}%")
+            self.progress_text.setText(f"{description or 'Downloading'} · {percent}%")
         else:
             self.progress.setRange(0, 0)
-            self.progress_text.setText(description or "Descargando…")
+            self.progress_text.setText(description or "Downloading…")
 
     def ask_secret(self, prompt):
         self.auth_label.setText(prompt)
         self.secret.clear()
         self.auth.show()
         self.secret.setFocus()
-        self.activity.setText("Steam necesita tu respuesta")
+        self.activity.setText("Steam needs your response")
 
     def send_secret(self):
         if self.worker and self.secret.text():
             self.worker.answer(self.secret.text())
             self.secret.clear()
             self.auth.hide()
-            self.activity.setText("Verificando con Steam…")
+            self.activity.setText("Verifying with Steam…")
 
     def cancel_install(self):
         if self.worker:
             self.worker.cancel()
             self.cancel_button.setEnabled(False)
-            self.cancel_button.setText("Cancelando…")
-            self.activity.setText("Terminando la operación actual…")
+            self.cancel_button.setText("Cancelling…")
+            self.activity.setText("Finishing the current operation…")
             self.auth.hide()
             self.secret.clear()
 
@@ -585,19 +585,19 @@ class MainWindow(QMainWindow):
         self.progress.setRange(0, 100)
         if self.outcome == "success":
             self.progress.setValue(100)
-            self.activity.setText("Tu próxima partida te espera")
-            self.progress_text.setText("Instalación completada")
+            self.activity.setText("Your next game awaits")
+            self.progress_text.setText("Installation complete")
             for item in self.stage_labels:
                 item.setText("✓   " + item.text()[4:])
                 item.setStyleSheet("color: #9bd0b1;")
         else:
             self.progress.setValue(0)
             self.activity.setText(
-                "Instalación cancelada"
+                "Installation cancelled"
                 if self.outcome == "cancelled"
-                else "No se pudo completar"
+                else "Unable to complete installation"
             )
-            self.progress_text.setText("Puedes volver a intentarlo.")
+            self.progress_text.setText("You can try again.")
         self.refresh()
         if self.close_pending:
             self.close()
@@ -628,7 +628,7 @@ class MainWindow(QMainWindow):
                 process.start(command[0], command[1:])
                 process.waitForStarted(3000)
             if self.game:
-                self.activity.setText(f"{self.edition.engine} en ejecución")
+                self.activity.setText(f"{self.edition.engine} is running")
             self.refresh()
         except (OSError, ValueError, ArgumentTypeError) as error:
             self.error(str(error))
@@ -643,13 +643,13 @@ class MainWindow(QMainWindow):
             self.game.deleteLater()
             self.game = None
         self.activity.setText(
-            "Listo para otra partida"
+            "Ready for another game"
             if code == 0
-            else "El motor se ha cerrado con un error"
+            else "The engine exited with an error"
         )
         if code != 0:
             self.logs.appendPlainText(
-                f"El motor terminó con el código {code}. Comprueba el registro y las dependencias gráficas."
+                f"The engine exited with code {code}. Check the log and graphics dependencies."
             )
             self.logs.show()
         self.refresh()
@@ -659,7 +659,7 @@ class MainWindow(QMainWindow):
             root = self.root_path()
             if not root.is_dir():
                 raise ValueError(
-                    "La carpeta todavía no existe. Instala el juego o elige una carpeta existente."
+                    "The folder does not exist yet. Install the game or choose an existing folder."
                 )
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(root)))
         except (OSError, ValueError, ArgumentTypeError) as error:
@@ -679,7 +679,7 @@ class MainWindow(QMainWindow):
             self.cancel_install()
             event.ignore()
         elif self.game:
-            self.activity.setText("Cierra el juego antes de salir de QuakeBundle.")
+            self.activity.setText("Close the game before exiting QuakeBundle.")
             event.ignore()
         else:
             self.settings.sync()

@@ -103,18 +103,18 @@ class InstallWorker(QThread):
         )
         if not supported:
             raise RuntimeError(
-                f"No hay un motor compatible con {system} {machine} para esta edición."
+                f"No compatible engine is available for {system} {machine} for this edition."
             )
         original_configs = {
             name
             for name in self.edition.launcher.CONFIG_FILES
             if (self.root / self.edition.config_dir / name).exists()
         }
-        self.next_stage(0, "Preparando SteamCMD")
+        self.next_stage(0, "Preparing SteamCMD")
         steamcmd.check_rosetta()
         executable = steamcmd.install_steamcmd()
         steamcmd.update_steamcmd(executable)
-        self.next_stage(1, "Iniciando sesión en Steam")
+        self.next_stage(1, "Logging in to Steam")
         interactive.login(
             executable,
             self.username,
@@ -123,14 +123,14 @@ class InstallWorker(QThread):
             self.checkpoint,
             self.auth_status,
         )
-        self.next_stage(2, "Descargando Quake")
+        self.next_stage(2, "Downloading Quake")
         gamedata.download_quake(executable, self.username, 3)
-        self.next_stage(3, "Instalando el juego")
+        self.next_stage(3, "Installing the game")
         if self.edition.key == "singleplayer":
             gamedata.install_single_player_game_data(self.root)
         else:
             gamedata.install_multiplayer_game_data(self.root)
-        self.next_stage(4, f"Instalando {self.edition.engine}")
+        self.next_stage(4, f"Installing {self.edition.engine}")
         if self.edition.key == "singleplayer":
             vkquake.install_vkquake(self.root)
         else:
@@ -138,7 +138,7 @@ class InstallWorker(QThread):
         self.edition.launcher.resolve_engine(
             self.root
         )  # No false success if a build is missing.
-        self.next_stage(5, "Preparando tu configuración")
+        self.next_stage(5, "Preparing your configuration")
         icon = f"{self.edition.engine}.svg"
         shutil.copyfile(ASSETS / "icons" / icon, self.root / icon)
         launcher = self.root / "launcher.py"

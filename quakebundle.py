@@ -50,7 +50,7 @@ def main(argv=None):
             QMessageBox.information(
                 None,
                 "QuakeBundle",
-                "QuakeBundle ya está abierto. Usa la ventana existente.",
+                "QuakeBundle is already open. Use the existing window.",
             )
             return 1
     window = MainWindow(settings)

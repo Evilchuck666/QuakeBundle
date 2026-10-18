@@ -63,7 +63,7 @@ def run_process(command, cwd, output, checkpoint, interactive=False, timeout=180
 
         def send(value):
             if any(char in value for char in "\r\n\x00"):
-                raise ValueError("La respuesta no puede contener saltos de línea.")
+                raise ValueError("The response cannot contain line breaks.")
             data = (value + "\n").encode("utf-8")
             if master is not None:
                 os.write(master, data)
@@ -80,7 +80,7 @@ def run_process(command, cwd, output, checkpoint, interactive=False, timeout=180
                 chunk = chunks.get(timeout=0.1)
             except queue.Empty:
                 if time.monotonic() - last_output > timeout:
-                    raise TimeoutError("SteamCMD no responde. Vuelve a intentarlo.")
+                    raise TimeoutError("SteamCMD is not responding. Try again.")
                 continue
             if chunk is None:
                 break
@@ -89,7 +89,7 @@ def run_process(command, cwd, output, checkpoint, interactive=False, timeout=180
         while proc.poll() is None:
             checkpoint()
             if time.monotonic() - last_output > timeout:
-                raise TimeoutError("SteamCMD no ha terminado.")
+                raise TimeoutError("SteamCMD has not finished.")
             time.sleep(0.1)
         return proc.returncode
     finally:
@@ -134,15 +134,15 @@ def login(steamcmd, username, cwd, ask, checkpoint, status):
         # Keep partial prompts across reads, but consume each challenge once.
         if match := PASSWORD.search(pending):
             pending = pending[match.end() :]
-            send(ask("Contraseña de Steam"))
+            send(ask("Steam password"))
         elif match := GUARD.search(pending):
             pending = pending[match.end() :]
-            send(ask("Código de Steam Guard"))
+            send(ask("Steam Guard code"))
         if "confirm" in pending.lower() and "mobile" in pending.lower():
-            status("Confirma el inicio de sesión en la aplicación móvil de Steam.")
+            status("Confirm the login in the Steam mobile app.")
             pending = ""
 
-    status("Conectando con Steam…")
+    status("Connecting to Steam…")
     code = run_process(
         [str(steamcmd), "+login", username, "+quit"],
         cwd,
@@ -153,5 +153,5 @@ def login(steamcmd, username, cwd, ask, checkpoint, status):
     )
     if code != 0:
         raise RuntimeError(
-            "No se pudo iniciar sesión en Steam. Comprueba la cuenta y Steam Guard."
+            "Unable to log in to Steam. Check your account and Steam Guard."
         )

@@ -31,16 +31,16 @@ class Edition:
 EDITIONS = {
     "singleplayer": Edition(
         "singleplayer",
-        "Campaña",
+        "Campaign",
         "vkQuake",
-        "Quake y sus expansiones",
+        "Quake and its expansions",
         INSTALL_SINGLE_PLAYER_DIR,
         "id1/configs",
         vk_launcher,
     ),
     "multiplayer": Edition(
         "multiplayer",
-        "Multijugador",
+        "Multiplayer",
         "ezQuake",
         "QuakeWorld · nQuake · Addons",
         INSTALL_MULTIPLAYER_DIR,
@@ -52,14 +52,14 @@ EDITIONS = {
 
 def validate_player(name, sensitivity, team="", fakename=""):
     if not name.strip():
-        raise ValueError("Escribe un nombre de jugador.")
+        raise ValueError("Enter a player name.")
     for value in (name, team, fakename):
         if any(ord(char) < 32 or char in '\\"' for char in value):
             raise ValueError(
-                "Los nombres no pueden contener comillas, barras inversas ni saltos de línea."
+                "Names cannot contain quotes, backslashes or line breaks."
             )
     if not math.isfinite(float(sensitivity)) or float(sensitivity) <= 0:
-        raise ValueError("La sensibilidad debe ser un número positivo.")
+        raise ValueError("Mouse sensitivity must be a positive number.")
 
 
 def read_player(edition, root):
@@ -128,7 +128,7 @@ def launch_command(edition, root, mod=""):
     command.extend(["+exec", config])
     if mod:
         if Path(mod).name != mod or mod in (".", "..") or not (root / mod).is_dir():
-            raise ValueError("Selecciona una carpeta de expansión válida.")
+            raise ValueError("Select a valid expansion folder.")
         command.extend(["-game", mod])
     return command
 

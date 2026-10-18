@@ -116,7 +116,7 @@ class DesktopQtTests(unittest.TestCase):
                 window.start_install()
                 self.assertIsNone(window.worker)
                 error.assert_called_once()
-                self.assertIn("sensibilidad", error.call_args.args[0])
+                self.assertIn("sensitivity", error.call_args.args[0])
 
     def test_full_install_reuses_backend_and_preserves_existing_configs(self):
         for key, edition in EDITIONS.items():
@@ -215,7 +215,7 @@ class DesktopQtTests(unittest.TestCase):
 
         def install(worker):
             worker.next_stage(1, "Connecting")
-            answers.append(worker.ask("Contraseña de Steam"))
+            answers.append(worker.ask("Steam password"))
 
         with patch.object(InstallWorker, "install", install):
             window.start_install()
@@ -236,7 +236,7 @@ class DesktopQtTests(unittest.TestCase):
         window.username.setText("account")
 
         def install(worker):
-            worker.ask("Contraseña de Steam")
+            worker.ask("Steam password")
 
         with patch.object(InstallWorker, "install", install):
             window.start_install()
@@ -253,7 +253,7 @@ class DesktopQtTests(unittest.TestCase):
         with patch.object(window, "error") as error:
             window.start_install()
         self.assertIsNone(window.worker)
-        self.assertIn("carpetas separadas", error.call_args.args[0])
+        self.assertIn("separate folders", error.call_args.args[0])
 
     def test_play_starts_a_native_child_with_game_directory_and_reports_completion(
         self,
@@ -275,7 +275,7 @@ class DesktopQtTests(unittest.TestCase):
         self.assertEqual(output.read_text(), "played")
         self.assertTrue((root / "id1/configs/player.cfg").is_file())
         self.assertTrue(window.install_button.isEnabled())
-        self.assertEqual(window.activity.text(), "Listo para otra partida")
+        self.assertEqual(window.activity.text(), "Ready for another game")
 
 
 if __name__ == "__main__":
