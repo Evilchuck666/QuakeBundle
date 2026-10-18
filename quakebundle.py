@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import traceback
 from pathlib import Path
 
 
@@ -19,6 +20,9 @@ def main(argv=None):
         "--screenshot", type=Path, help="Save a preview during --smoke-test"
     )
     args = parser.parse_args(argv)
+
+    if sys.version_info < (3, 10):  # noqa: UP036 - source may be launched with an older system Python.
+        raise RuntimeError("QuakeBundle requires Python 3.10 or newer.")
 
     from PySide6.QtCore import QLockFile, QSettings, QTemporaryDir, QTimer
     from PySide6.QtWidgets import QApplication, QMessageBox
@@ -90,5 +94,28 @@ def main(argv=None):
     return result
 
 
+def run(argv=None):
+    """Report startup failures even when Windows uses pythonw (no console)."""
+    try:
+        return main(argv)
+    except Exception as error:  # noqa: BLE001 - surface startup failures when no console exists.
+        message = "QuakeBundle could not start.\n\n" + traceback.format_exc()
+        if isinstance(error, ImportError) and not getattr(sys, "frozen", False):
+            message += (
+                "\nThis is the source code. To use QuakeBundle without installing "
+                "Python or Qt, extract the standalone package for your system "
+                "and open QuakeBundle.exe (Windows), QuakeBundle.app (macOS), "
+                "or QuakeBundle (Linux).\n"
+            )
+        if sys.stderr is not None:
+            print(message, file=sys.stderr)
+        elif sys.platform == "win32":
+            # Qt itself may have failed to import, so use a native dialog.
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, message, "QuakeBundle", 0x10)
+        return 1
+
+
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(run())

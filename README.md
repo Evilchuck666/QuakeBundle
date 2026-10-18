@@ -11,6 +11,20 @@ configuraciones**. El usuario no necesita instalar Python, pip ni Qt. Descomprim
 el paquete completo y abre `QuakeBundle` (Linux), `QuakeBundle.exe` (Windows) o
 `QuakeBundle.app` (macOS). Conserva toda la carpeta y su directorio `_internal`.
 
+### Descargar para Windows
+
+1. Abre [Build Qt6 desktop en GitHub Actions](https://github.com/Evilchuck666/QuakeBundle/actions/workflows/desktop.yml)
+   y selecciona una ejecución completada correctamente.
+2. En **Artifacts**, descarga **QuakeBundle-windows-2025** (Windows x64).
+   GitHub requiere iniciar sesión para descargar los artefactos.
+3. Extrae el ZIP del artefacto y después el archivo
+   `QuakeBundle-windows-2025.zip` que contiene.
+4. Abre **`QuakeBundle/QuakeBundle.exe`**. El directorio `_internal` debe estar
+   junto al ejecutable: incluye el intérprete y todas las dependencias de la GUI.
+
+No necesitas instalar Python, pip ni PySide6, ni ejecutar comandos.
+**Code → Download ZIP** descarga el código fuente, no la aplicación autónoma.
+
 El código continúa en Python para reutilizar los instaladores existentes;
 PyInstaller incluye su intérprete en la aplicación. Es una distribución autónoma
 en una carpeta, no un binario estático universal. Cada sistema y arquitectura

@@ -52,12 +52,6 @@ jobs:
       - name: Test packaged application (Linux)
         if: runner.os == 'Linux'
         run: dist/QuakeBundle/QuakeBundle --smoke-test
-      - name: Test packaged application (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $process = Start-Process dist/QuakeBundle/QuakeBundle.exe -ArgumentList '--smoke-test' -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "Smoke test failed: $($process.ExitCode)" }
       - name: Test packaged application (macOS)
         if: runner.os == 'macOS'
         run: dist/QuakeBundle.app/Contents/MacOS/QuakeBundle --smoke-test
@@ -70,6 +64,28 @@ jobs:
       - name: Archive application (Windows)
         if: runner.os == 'Windows'
         run: Compress-Archive -Path dist/QuakeBundle -DestinationPath QuakeBundle-${{ matrix.os }}.zip
+      - name: Test Windows ZIP without Python on PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'QuakeBundle standalone test'
+          Expand-Archive QuakeBundle-${{ matrix.os }}.zip -DestinationPath $destination
+          $executable = Join-Path $destination 'QuakeBundle/QuakeBundle.exe'
+          # Use the delivered ZIP, outside the checkout, with only Windows on PATH.
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          foreach ($name in @('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH')) {
+            Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+          }
+          $process = Start-Process $executable -WorkingDirectory $destination -ArgumentList '--smoke-test --screenshot preview.png' -PassThru
+          if (-not $process.WaitForExit(60000)) {
+            $process.Kill()
+            throw 'Standalone smoke test timed out'
+          }
+          if ($process.ExitCode -ne 0) { throw "Smoke test failed: $($process.ExitCode)" }
+          $preview = Join-Path $destination 'preview.png'
+          if (-not (Test-Path $preview) -or (Get-Item $preview).Length -eq 0) {
+            throw 'Standalone application did not render its window'
+          }
       - uses: actions/upload-artifact@v6
         with:
           name: QuakeBundle-${{ matrix.os }}
