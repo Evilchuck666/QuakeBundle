@@ -7,9 +7,9 @@ del jugador, autenticación de Steam y progreso de instalación.
 ## Aplicación autónoma
 
 El paquete distribuible contiene **Python, Qt6, certificados TLS, iconos y
-configuraciones**. El usuario no necesita instalar Python, pip ni Qt. Descomprime
-el paquete completo y abre `QuakeBundle` (Linux), `QuakeBundle.exe` (Windows) o
-`QuakeBundle.app` (macOS). Conserva toda la carpeta y su directorio `_internal`.
+configuraciones en un único ejecutable**. El usuario no necesita instalar
+Python, pip ni Qt. Descomprime y abre `QuakeBundle` (Linux/macOS) o
+`QuakeBundle.exe` (Windows). No necesita un directorio `_internal` al lado.
 
 ### Descargar para Windows
 
@@ -19,16 +19,18 @@ el paquete completo y abre `QuakeBundle` (Linux), `QuakeBundle.exe` (Windows) o
    GitHub requiere iniciar sesión para descargar los artefactos.
 3. Extrae el ZIP del artefacto y después el archivo
    `QuakeBundle-windows-2025.zip` que contiene.
-4. Abre **`QuakeBundle/QuakeBundle.exe`**. El directorio `_internal` debe estar
-   junto al ejecutable: incluye el intérprete y todas las dependencias de la GUI.
+4. Abre **`QuakeBundle.exe`**. Es el único archivo necesario para ejecutar la GUI.
 
 No necesitas instalar Python, pip ni PySide6, ni ejecutar comandos.
 **Code → Download ZIP** descarga el código fuente, no la aplicación autónoma.
 
 La GUI y su lógica de instalación están escritas en Python;
-PyInstaller incluye su intérprete en la aplicación. Es una distribución autónoma
-en una carpeta, no un binario estático universal. Cada sistema y arquitectura
-necesita su propia compilación. Véase la
+PyInstaller incluye su intérprete en la aplicación mediante el modo `onefile`.
+Al arrancar extrae las bibliotecas y recursos a una carpeta temporal, que elimina
+al cerrar normalmente. Esto añade tiempo al arranque y requiere espacio temporal;
+en Linux esa ubicación debe permitir ejecutar las bibliotecas extraídas.
+Es un ejecutable autoextraíble, no un AppImage ni un binario estático universal.
+Cada sistema y arquitectura necesita su propia compilación. Véase la
 [documentación de PyInstaller](https://pyinstaller.org/en/stable/operating-mode.html).
 
 La aplicación instala y abre los motores directamente, sin necesitar un intérprete
@@ -89,8 +91,21 @@ mismo entorno desde el que se compila. El `.spec` comprueba sus importaciones
 y detiene la compilación si faltan o no se pueden cargar. Este Python solo se
 necesita para construir; el paquete resultante incluye el intérprete y la GUI.
 
-La salida está en `dist/QuakeBundle/` o `dist/QuakeBundle.app/`. La compilación
-incluye los plugins de Qt mediante los hooks de PyInstaller. El workflow
+La salida es **`dist/QuakeBundle`** en Linux/macOS o **`dist/QuakeBundle.exe`**
+en Windows. El modo `onefile` ya está definido en el `.spec`; se utiliza el mismo
+comando de compilación, sin añadir `--onefile`. La compilación incluye los plugins
+de Qt mediante los hooks de PyInstaller.
+
+En macOS se genera un binario Mach-O independiente que puedes ejecutar con
+`./dist/QuakeBundle`. No se genera un `.app`: ese formato es una carpeta, aunque
+Finder lo muestre como una aplicación. La integración propia de un `.app`
+(por ejemplo, su metadato de aplicación) requiere distribuir ese formato.
+
+Si antes compilaste el formato de carpeta, PyInstaller reemplaza
+`dist/QuakeBundle/` por el ejecutable al reconstruir con `--noconfirm`.
+Los paquetes antiguos descargados siguen teniendo su formato anterior.
+
+El workflow
 **Build Qt6 desktop** construye, verifica y archiva las aplicaciones para Linux
 x64, Windows x64, macOS Intel y Apple Silicon. Los artefactos son paquetes sin
 firma; el workflow no publica releases.
@@ -115,7 +130,7 @@ vista de la ventana: `python quakebundle.py --smoke-test --screenshot preview.pn
 Comprueba también el paquete compilado:
 
 ```sh
-QT_QPA_PLATFORM=offscreen dist/QuakeBundle/QuakeBundle --smoke-test
+QT_QPA_PLATFORM=offscreen dist/QuakeBundle --smoke-test
 ```
 
 Las pruebas usan procesos y archivos sintéticos, sin credenciales ni descargas

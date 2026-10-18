@@ -110,8 +110,7 @@ def run(argv=None):
             message += (
                 "\nThis is the source code. To use QuakeBundle without installing "
                 "Python or Qt, extract the standalone package for your system "
-                "and open QuakeBundle.exe (Windows), QuakeBundle.app (macOS), "
-                "or QuakeBundle (Linux).\n"
+                "and open QuakeBundle.exe (Windows) or QuakeBundle (Linux/macOS).\n"
             )
         if sys.stderr is not None:
             print(message, file=sys.stderr)

@@ -35,7 +35,10 @@ on Linux x64, Windows x64, macOS Intel, and macOS Apple Silicon.
 - Windows authentication tests use real `WriteConsoleW`/`ReadConsoleW` calls to
   exercise password and Steam Guard prompts through ConPTY, plus cancellation
   and secret-free arguments. Ordinary pipes cannot pass the console fixture.
-- The Windows package smoke test runs outside the checkout with Python removed
+- The Linux/macOS package smoke test copies only the executable outside the
+  checkout and validates its resources, configuration helpers, and rendering.
+- The Windows ZIP must contain only `QuakeBundle.exe`. Its smoke test runs
+  outside the checkout with Python removed
   from `PATH`. It checks the bundled console support with Windows' own `cmd.exe`,
   renders the GUI, and validates resources and configuration helpers.
 

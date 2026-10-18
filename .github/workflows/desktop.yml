@@ -49,28 +49,37 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: python quakebundle.py --smoke-test
       - run: python -m PyInstaller --noconfirm QuakeBundle.spec
-      - name: Test packaged application (Linux)
-        if: runner.os == 'Linux'
-        run: dist/QuakeBundle/QuakeBundle --smoke-test
-      - name: Test packaged application (macOS)
-        if: runner.os == 'macOS'
-        run: dist/QuakeBundle.app/Contents/MacOS/QuakeBundle --smoke-test
+      - name: Test standalone executable (Linux and macOS)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          test -f dist/QuakeBundle
+          test ! -e dist/_internal
+          destination="$RUNNER_TEMP/QuakeBundle standalone test"
+          mkdir -p "$destination"
+          cp dist/QuakeBundle "$destination/QuakeBundle"
+          cd "$destination"
+          env -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV ./QuakeBundle --smoke-test --screenshot preview.png
+          test -s preview.png
       - name: Archive application (Linux)
         if: runner.os == 'Linux'
         run: tar -C dist -czf QuakeBundle-${{ matrix.os }}.tar.gz QuakeBundle
       - name: Archive application (macOS)
         if: runner.os == 'macOS'
-        run: ditto -c -k --sequesterRsrc --keepParent dist/QuakeBundle.app QuakeBundle-${{ matrix.os }}.zip
+        run: ditto -c -k --keepParent dist/QuakeBundle QuakeBundle-${{ matrix.os }}.zip
       - name: Archive application (Windows)
         if: runner.os == 'Windows'
-        run: Compress-Archive -Path dist/QuakeBundle -DestinationPath QuakeBundle-${{ matrix.os }}.zip
+        run: Compress-Archive -Path dist/QuakeBundle.exe -DestinationPath QuakeBundle-${{ matrix.os }}.zip
       - name: Test Windows ZIP without Python on PATH
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $destination = Join-Path $env:RUNNER_TEMP 'QuakeBundle standalone test'
           Expand-Archive QuakeBundle-${{ matrix.os }}.zip -DestinationPath $destination
-          $executable = Join-Path $destination 'QuakeBundle/QuakeBundle.exe'
+          $executable = Join-Path $destination 'QuakeBundle.exe'
+          if (-not (Test-Path $executable -PathType Leaf) -or (Get-ChildItem $destination).Count -ne 1) {
+            throw 'The Windows ZIP must contain only QuakeBundle.exe'
+          }
           # Use the delivered ZIP, outside the checkout, with only Windows on PATH.
           $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
           foreach ($name in @('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH')) {

@@ -4,7 +4,7 @@ import runpy
 import sys
 import unittest
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
 
 
@@ -66,3 +66,34 @@ class BuildSpecTests(unittest.TestCase):
 
     def test_linux_does_not_require_windows_dependency(self):
         self.assertNotIn("winpty", self.execute_spec("linux"))
+
+    def test_all_platforms_embed_binaries_and_resources_in_the_executable(self):
+        root = Path(__file__).resolve().parents[1]
+        hooks = ModuleType("PyInstaller.utils.hooks")
+        hooks.collect_all = Mock(return_value=([], [], []))
+        analysis = SimpleNamespace(
+            pure=[], scripts=[], binaries=["Qt"], datas=["assets"]
+        )
+        for platform in ("linux", "win32", "darwin"):
+            exe = Mock()
+            with (
+                self.subTest(platform=platform),
+                patch.dict(sys.modules, {"PyInstaller.utils.hooks": hooks}),
+                patch.object(sys, "platform", platform),
+                patch("importlib.import_module"),
+            ):
+                # COLLECT and BUNDLE are deliberately unavailable: the output
+                # must not require a separate directory or application bundle.
+                runpy.run_path(
+                    str(root / "QuakeBundle.spec"),
+                    init_globals={
+                        "SPECPATH": str(root),
+                        "Analysis": Mock(return_value=analysis),
+                        "PYZ": Mock(return_value="bytecode"),
+                        "EXE": exe,
+                    },
+                )
+            exe.assert_called_once()
+            self.assertIn(analysis.binaries, exe.call_args.args)
+            self.assertIn(analysis.datas, exe.call_args.args)
+            self.assertFalse(exe.call_args.kwargs.get("exclude_binaries", False))

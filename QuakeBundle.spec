@@ -42,13 +42,9 @@ analysis = Analysis(
 )
 pyz = PYZ(analysis.pure)
 exe = EXE(
-    pyz, analysis.scripts, [], exclude_binaries=True,
+    pyz, analysis.scripts, analysis.binaries, analysis.datas, [],
     name="QuakeBundle", debug=False, strip=False, upx=False,
     console=False, icon=str(root / "assets" / "icons" / "vkQuake.ico"),
 )
-collection = COLLECT(exe, analysis.binaries, analysis.datas,
-                     strip=False, upx=False, name="QuakeBundle")
-if sys.platform == "darwin":
-    app = BUNDLE(collection, name="QuakeBundle.app",
-                 bundle_identifier="io.quakebundle.desktop",
-                 info_plist={"NSHighResolutionCapable": True})
+# One executable on every platform. A macOS .app is a directory bundle,
+# so do not wrap this Mach-O executable in BUNDLE.
