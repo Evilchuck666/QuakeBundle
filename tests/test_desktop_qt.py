@@ -20,7 +20,7 @@ if HAS_QT:
     from quake_gui.library import ASSETS, EDITIONS, configure
     from quake_gui.window import MainWindow
     from quake_gui.worker import InstallWorker
-    from quake_installer import ezquake, gamedata, interactive, steamcmd, vkquake
+    from quake_installer import ezquake, gamedata, interactive, shortcuts, steamcmd, vkquake
 
 
 @unittest.skipUnless(HAS_QT, "Install requirements-gui.txt to run Qt tests")
@@ -34,7 +34,7 @@ class DesktopQtTests(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.root = Path(
             self.stack.enter_context(tempfile.TemporaryDirectory(prefix="qt quake "))
-        )
+        ).resolve()
 
     def pump_until(self, condition, timeout=5):
         deadline = time.monotonic() + timeout
@@ -187,7 +187,7 @@ class DesktopQtTests(unittest.TestCase):
                 shortcut = (
                     self.root / ".local/share/applications" / f"{edition.engine}.desktop"
                 ).read_text(encoding="utf-8")
-                self.assertIn(f'Exec="{root / "engine"}"', shortcut)
+                self.assertIn("Exec=" + shortcuts.desktop_argument(root / "engine"), shortcut)
                 self.assertIn('"+exec"', shortcut)
                 self.assertIn("Terminal=false\n", shortcut)
                 launcher = root / "launcher.py"

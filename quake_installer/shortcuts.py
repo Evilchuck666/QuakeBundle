@@ -116,7 +116,8 @@ try {
     $link.Description = $env:QUAKE_SHORTCUT_NAME
     $link.Save()
     if (Test-Path -LiteralPath $destination) {
-        [System.IO.File]::Replace($staged, $destination, $null)
+        # PowerShell converts $null to an empty string for .NET string arguments.
+        [System.IO.File]::Replace($staged, $destination, [System.Management.Automation.Language.NullString]::Value)
     } else {
         [System.IO.File]::Move($staged, $destination)
     }

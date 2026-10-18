@@ -310,7 +310,11 @@ class NQuakeGameDataTests(unittest.TestCase):
 
     def test_rejects_archive_paths_outside_install_directory(self):
         """Reject archive paths that could write outside the installation directory."""
-        for path in ("../../escaped.cfg", "/escaped.cfg", "C:\\escaped.cfg", "..\\escaped.cfg"):
+        for path in (
+            "../../escaped.cfg", "/escaped.cfg", "\\escaped.cfg",
+            "C:\\escaped.cfg", "C:escaped.cfg", "..\\escaped.cfg",
+            "//server/share/escaped.cfg", "\\\\server\\share\\escaped.cfg",
+        ):
             with self.subTest(path=path):
                 self.write_zip("addon-textures.zip", {path: b"outside"})
                 with self.assertRaisesRegex(SystemExit, "Unsafe path in addon-textures.zip"):

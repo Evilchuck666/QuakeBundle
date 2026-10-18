@@ -35,7 +35,7 @@ class WizardTestCase(unittest.TestCase):
         self.addCleanup(self.stack.close)
         self.root = Path(self.stack.enter_context(
             tempfile.TemporaryDirectory(prefix="vkquake setup ")
-        ))
+        )).resolve()
         self.config = self.root / "id1" / "configs" / "player.cfg"
         shutil.copytree(CONFIGS, self.config.parent)
         self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
@@ -293,7 +293,7 @@ class LauncherTests(unittest.TestCase):
         self.addCleanup(stack.close)
         self.root = Path(stack.enter_context(
             tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
-        ))
+        )).resolve()
         self.configs = self.root / "id1" / "configs"
         shutil.copytree(CONFIGS, self.configs)
         self.marker = self.configs / ".wizard-complete"

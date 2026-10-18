@@ -279,7 +279,7 @@ class LauncherTests(unittest.TestCase):
         self.addCleanup(stack.close)
         self.root = Path(stack.enter_context(
             tempfile.TemporaryDirectory(prefix="ezquake launch ' $HOME ")
-        ))
+        )).resolve()
         shutil.copytree(CONFIGS, self.root / "templates")
         self.write_launcher(0)
         self.configs = self.root / "ezquake" / "configs"

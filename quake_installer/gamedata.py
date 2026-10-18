@@ -9,7 +9,7 @@ import shutil
 import sys
 import tempfile
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
 
 from .config import (
@@ -138,7 +138,9 @@ def _extract_nquake_package(download: Path, content: Path) -> None:
     try:
         with zipfile.ZipFile(download) as archive:
             for info in archive.infolist():
-                relative = Path(info.filename.replace("\\", "/"))
+                # ZIP paths use POSIX separators even on Windows, where a
+                # leading slash alone is not considered an absolute Path.
+                relative = PurePosixPath(info.filename.replace("\\", "/"))
                 if relative.is_absolute() or ".." in relative.parts or ":" in info.filename:
                     sys.exit(f"Unsafe path in {download.name}: {info.filename}")
                 if relative.as_posix().lower() in excluded:

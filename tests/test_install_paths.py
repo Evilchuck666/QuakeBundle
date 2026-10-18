@@ -131,8 +131,8 @@ class InstallationPathTests(unittest.TestCase):
         desktop = self.home / ".local/share/applications" / (name + ".desktop")
         entries = dict(line.split("=", 1) for line in desktop.read_text(encoding="utf-8").splitlines()
                        if "=" in line and not line.startswith("#"))
-        self.assertEqual(entries["Path"], str(expected))
-        self.assertEqual(entries["Icon"], str(expected / (name + ".svg")))
+        self.assertEqual(entries["Path"], shortcuts.desktop_value(expected))
+        self.assertEqual(entries["Icon"], shortcuts.desktop_value(expected / (name + ".svg")))
         self.assertEqual(entries["Exec"], shortcuts.desktop_argument(Path(sys.executable).absolute())
                          + " " + shortcuts.desktop_argument(expected / "launcher.py"))
 

@@ -40,7 +40,7 @@ class ShortcutTests(unittest.TestCase):
         self.addCleanup(stack.close)
         self.home = Path(
             stack.enter_context(tempfile.TemporaryDirectory(prefix="quake shortcuts "))
-        )
+        ).resolve()
         self.root = self.home / "Quake's é $game; 100%"
         self.root.mkdir()
         self.python = Path(sys.executable).absolute()
@@ -69,9 +69,10 @@ class ShortcutTests(unittest.TestCase):
                 self.root, self.python, self.fetch_template, self.shortcut), destination)
             content = destination.read_text(encoding="utf-8")
             self.assertIn("Name=" + self.name, content)
-            self.assertIn(f"Path={self.root}\n", content)
-            self.assertIn(f"Icon={self.root / f'{self.icon}.svg'}\n", content)
-            self.assertIn(f"TryExec={self.python}\n", content)
+            self.assertIn(f"Path={shortcuts.desktop_value(self.root)}\n", content)
+            self.assertIn(
+                f"Icon={shortcuts.desktop_value(self.root / f'{self.icon}.svg')}\n", content)
+            self.assertIn(f"TryExec={shortcuts.desktop_value(self.python)}\n", content)
             self.assertIn("Terminal=true\n", content)
             self.assertNotIn("/absolute/path/to/", content)
             entries = "\n".join(line for line in content.splitlines() if not line.startswith("#"))
@@ -247,7 +248,7 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
             if os.name != "nt":
                 (self.root / "launcher.py").write_text(
                     "from pathlib import Path\n"
-                    "assert Path.cwd() == Path(__file__).parent\n", encoding="utf-8")
+                    "assert Path.cwd().samefile(Path(__file__).parent)\n", encoding="utf-8")
                 subprocess.run(["/bin/sh", "-c", action["ActionParameters"]["source"]],
                                check=True)
             return Mock(stdout="")
