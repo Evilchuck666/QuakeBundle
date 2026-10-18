@@ -174,6 +174,7 @@ class DesktopQtTests(unittest.TestCase):
                     )
                 )
                 cleanup = stack.enter_context(patch.object(gamedata, "clean_up"))
+                stack.enter_context(patch.object(Path, "home", return_value=self.root))
                 worker.run()
                 self.assertEqual(outcomes, ["success"])
                 self.assertEqual(failures, [])
@@ -183,6 +184,12 @@ class DesktopQtTests(unittest.TestCase):
                 data.assert_called_once_with(root)
                 engine.assert_called_once_with(root)
                 cleanup.assert_called_once()
+                shortcut = (
+                    self.root / ".local/share/applications" / f"{edition.engine}.desktop"
+                ).read_text(encoding="utf-8")
+                self.assertIn(f'Exec="{root / "engine"}"', shortcut)
+                self.assertIn('"+exec"', shortcut)
+                self.assertIn("Terminal=false\n", shortcut)
                 launcher = root / "launcher.py"
                 self.assertEqual(
                     launcher.read_bytes(),

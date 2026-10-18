@@ -15,7 +15,7 @@ from quake_installer import ezquake, gamedata, interactive, steamcmd, vkquake
 from quake_installer.config import STEAMCMD_DIR, parse_install_dir
 from quake_installer.events import Cancelled, Observer, observe
 
-from .library import ASSETS, configure
+from .library import ASSETS, configure, create_shortcut
 
 
 class LogStream(io.TextIOBase):
@@ -155,6 +155,10 @@ class InstallWorker(QThread):
                     ASSETS / "cfg" / self.edition.engine / name, directory / name
                 )
         configure(self.edition, self.root, **self.player)
+        self.checkpoint()
+        self.log.emit("Creating game shortcut")
+        destination = create_shortcut(self.edition, self.root)
+        self.log.emit(f"Created shortcut: {destination}")
         gamedata.clean_up()
 
     def run(self):

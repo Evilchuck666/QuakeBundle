@@ -11,6 +11,7 @@ from pathlib import Path
 
 from assets.scripts.ezQuake import launcher as ez_launcher
 from assets.scripts.vkQuake import launcher as vk_launcher
+from quake_installer import shortcuts
 from quake_installer.config import INSTALL_MULTIPLAYER_DIR, INSTALL_SINGLE_PLAYER_DIR
 from quake_installer.runtime import external_environment
 
@@ -142,3 +143,29 @@ def game_environment(edition):
         if edition.key == "multiplayer":
             environment.update(__GL_SYNC_TO_VBLANK="0", __GL_MaxFramesAllowed="1")
     return environment
+
+
+def create_shortcut(edition, root):
+    """Create a native shortcut that runs the configured engine without Python."""
+    command = launch_command(edition, root)
+    shortcut = (
+        shortcuts.VKQUAKE_SHORTCUT
+        if edition.key == "singleplayer"
+        else shortcuts.EZQUAKE_SHORTCUT
+    )
+    system = platform.system()
+    extension = {"Linux": "svg", "Windows": "ico", "Darwin": "png"}[system]
+    icon = f"{edition.engine}.{extension}"
+    shutil.copyfile(ASSETS / "icons" / icon, root / icon)
+    if system == "Linux":
+        def copy_template(_url, destination):
+            shutil.copyfile(ASSETS / "links" / destination.name, destination)
+
+        return shortcuts.create_linux_shortcut(
+            root, command[0], copy_template, shortcut, command=command
+        )
+    if system == "Windows":
+        return shortcuts.create_windows_shortcut(root, shortcut, command=command)
+    return shortcuts.create_macos_shortcut(
+        root, command[0], shortcut, command=command
+    )

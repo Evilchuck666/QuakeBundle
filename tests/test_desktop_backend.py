@@ -12,6 +12,7 @@ from unittest.mock import patch
 from quake_gui.library import (
     EDITIONS,
     configure,
+    create_shortcut,
     game_environment,
     launch_command,
     read_player,
@@ -21,6 +22,29 @@ from quake_installer.events import Cancelled, Observer, observe
 
 
 class DesktopConfigTests(unittest.TestCase):
+    def test_shortcuts_use_engine_and_native_icon_without_python(self):
+        for edition in EDITIONS.values():
+            for system, extension, helper in (
+                ("Linux", "svg", "create_linux_shortcut"),
+                ("Windows", "ico", "create_windows_shortcut"),
+                ("Darwin", "png", "create_macos_shortcut"),
+            ):
+                with (
+                    self.subTest(edition=edition.key, system=system),
+                    tempfile.TemporaryDirectory() as temporary,
+                    patch("quake_gui.library.platform.system", return_value=system),
+                    patch("quake_gui.library.shortcuts." + helper) as create,
+                    patch.object(edition.launcher, "resolve_engine") as resolve,
+                    patch.object(sys, "frozen", True, create=True),
+                ):
+                    root = Path(temporary)
+                    resolve.return_value = root / "engine"
+                    create_shortcut(edition, root)
+                    self.assertTrue((root / f"{edition.engine}.{extension}").is_file())
+                    command = create.call_args.kwargs["command"]
+                    self.assertEqual(command, launch_command(edition, root))
+                    self.assertEqual(command[0], str(root / "engine"))
+
     def test_bundled_configs_recover_missing_files_and_preserve_custom_settings(self):
         for edition in EDITIONS.values():
             with (

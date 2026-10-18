@@ -21,7 +21,10 @@ La aplicación instala y abre los motores directamente, sin necesitar un intérp
 externo para jugar desde la GUI. Los ajustes iniciales, el icono SVG y el
 `launcher.py` de cada motor se copian desde los recursos incluidos a la carpeta
 de instalación. El lanzador permite abrir el juego fuera de la GUI y requiere
-Python instalado para ejecutarlo. Las configuraciones
+Python instalado para ejecutarlo. Al terminar la instalación, la GUI crea un
+acceso directo al motor que funciona sin Python: en el menú de aplicaciones de
+Linux, el escritorio de Windows o `~/Applications` en macOS. Se actualiza al
+reinstalar. Las configuraciones
 existentes se conservan, salvo los campos del jugador que se editan en la ventana.
 
 Para instalar necesitas Internet y una cuenta de Steam que tenga Quake. SteamCMD,

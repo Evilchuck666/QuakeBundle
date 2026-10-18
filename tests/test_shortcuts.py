@@ -6,6 +6,7 @@ import io
 import json
 import os
 import plistlib
+import shlex
 import shutil
 import subprocess
 import sys
@@ -157,6 +158,30 @@ class ShortcutTests(unittest.TestCase):
         with patch.object(shortcuts.subprocess, "run", return_value=Mock(stdout="")), \
              self.assertRaisesRegex(OSError, "did not create"):
             shortcuts.create_windows_shortcut(self.root, self.shortcut)
+
+    def test_direct_engine_shortcuts_preserve_arguments(self):
+        command = [str(self.root / "engine"), "-basedir", str(self.root),
+                   "+exec", "../id1/configs/autoexec.cfg"]
+        destination = shortcuts.create_linux_shortcut(
+            self.root, self.python, self.fetch_template, self.shortcut, command=command)
+        content = destination.read_text(encoding="utf-8")
+        self.assertIn("Exec=" + " ".join(map(shortcuts.desktop_argument, command)), content)
+        self.assertIn("Terminal=false\n", content)
+        self.assertNotIn("launcher.py", next(
+            line for line in content.splitlines() if line.startswith("Exec=")))
+
+        destination = self.home / "direct.lnk"
+        destination.write_bytes(b"shortcut")
+        with patch.object(shortcuts, "run_native", return_value=Mock(stdout=str(destination))) as run:
+            shortcuts.create_windows_shortcut(self.root, self.shortcut, command=command)
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual(environment["QUAKE_SHORTCUT_TARGET"], command[0])
+        self.assertEqual(environment["QUAKE_SHORTCUT_ARGUMENTS"],
+                         subprocess.list2cmdline(command[1:]))
+
+        workflow = shortcuts.build_macos_workflow(self.root, self.python, command=command)
+        script = workflow["actions"][0]["action"]["ActionParameters"]["source"]
+        self.assertEqual(shlex.split(script.splitlines()[1]), ["exec", *command])
 
     @unittest.skipUnless(sys.platform == "win32", "Requires Windows Script Host")
     def test_native_windows_shortcut_target_icon_and_reinstallation(self):
