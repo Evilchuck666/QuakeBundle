@@ -18,7 +18,7 @@ Python, pip ni Qt. Descomprime y abre `QuakeBundle` (Linux/macOS) o
 2. En **Artifacts**, descarga **QuakeBundle-windows-2025** (Windows x64).
    GitHub requiere iniciar sesión para descargar los artefactos.
 3. Extrae el ZIP del artefacto y después el archivo
-   `QuakeBundle-windows-2025.zip` que contiene.
+   `QuakeBundle-windows-x64.zip` que contiene.
 4. Abre **`QuakeBundle.exe`**. Es el único archivo necesario para ejecutar la GUI.
 
 No necesitas instalar Python, pip ni PySide6, ni ejecutar comandos.
@@ -63,6 +63,30 @@ permite elegir las expansiones presentes. Los ajustes se guardan en los archivos
 del juego. La carpeta y el nombre de usuario se recuerdan con QSettings.
 
 ## Desarrollo y compilación
+
+### Scripts de compilación
+
+Con `uv` instalado, ejecuta el script correspondiente **en el sistema de destino**:
+
+| Sistema | Comando | Paquete generado |
+| --- | --- | --- |
+| GNU/Linux | `./build-linux.sh` | `dist/QuakeBundle-linux-x64.tar.gz` |
+| Windows PowerShell | `.\build-windows.ps1` | `dist/QuakeBundle-windows-x64.zip` |
+| macOS | `./build-macos.sh` | `dist/QuakeBundle-macos-x64.zip` o `dist/QuakeBundle-macos-arm64.zip` |
+
+Los scripts obtienen Python 3.13 y las dependencias de `requirements-build.txt`
+mediante `uv`, en un entorno aislado. Después compilan el ejecutable `onefile`,
+lo prueban desde una carpeta temporal sin los archivos del proyecto y crean un
+archivo comprimido que contiene únicamente ese ejecutable. El binario también
+queda disponible directamente en `dist/`. Si falla la compilación o la prueba,
+el proceso se detiene sin publicar un nuevo archivo comprimido.
+
+Puedes invocarlos desde otra carpeta. La arquitectura del paquete corresponde
+al intérprete utilizado para construirlo; no realizan compilación cruzada.
+En macOS se entrega el binario independiente, no un `.app`.
+El equipo del usuario final no necesita `uv` ni Python.
+
+### Compilación manual
 
 Python solo es necesario en el equipo de desarrollo/compilación (3.10 o superior;
 CI utiliza 3.13). Desde la raíz del repositorio:

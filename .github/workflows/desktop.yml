@@ -8,6 +8,9 @@ on:
       - 'assets/**'
       - 'tests/**'
       - 'quakebundle.py'
+      - 'build-*.sh'
+      - 'build-windows.ps1'
+      - 'scripts/build.py'
       - 'QuakeBundle.spec'
       - 'requirements-*.txt'
       - 'README.md'
@@ -48,57 +51,19 @@ jobs:
       - run: python -m pip install -r requirements-build.txt
       - run: python -m unittest discover -s tests -v
       - run: python quakebundle.py --smoke-test
-      - run: python -m PyInstaller --noconfirm QuakeBundle.spec
-      - name: Test standalone executable (Linux and macOS)
-        if: runner.os != 'Windows'
+      - name: Build and verify the standalone package
         shell: bash
         run: |
-          test -f dist/QuakeBundle
-          test ! -e dist/_internal
-          destination="$RUNNER_TEMP/QuakeBundle standalone test"
-          mkdir -p "$destination"
-          cp dist/QuakeBundle "$destination/QuakeBundle"
-          cd "$destination"
-          env -u PYTHONHOME -u PYTHONPATH -u VIRTUAL_ENV ./QuakeBundle --smoke-test --screenshot preview.png
-          test -s preview.png
-      - name: Archive application (Linux)
-        if: runner.os == 'Linux'
-        run: tar -C dist -czf QuakeBundle-${{ matrix.os }}.tar.gz QuakeBundle
-      - name: Archive application (macOS)
-        if: runner.os == 'macOS'
-        run: ditto -c -k --keepParent dist/QuakeBundle QuakeBundle-${{ matrix.os }}.zip
-      - name: Archive application (Windows)
-        if: runner.os == 'Windows'
-        run: Compress-Archive -Path dist/QuakeBundle.exe -DestinationPath QuakeBundle-${{ matrix.os }}.zip
-      - name: Test Windows ZIP without Python on PATH
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $destination = Join-Path $env:RUNNER_TEMP 'QuakeBundle standalone test'
-          Expand-Archive QuakeBundle-${{ matrix.os }}.zip -DestinationPath $destination
-          $executable = Join-Path $destination 'QuakeBundle.exe'
-          if (-not (Test-Path $executable -PathType Leaf) -or (Get-ChildItem $destination).Count -ne 1) {
-            throw 'The Windows ZIP must contain only QuakeBundle.exe'
-          }
-          # Use the delivered ZIP, outside the checkout, with only Windows on PATH.
-          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
-          foreach ($name in @('PYTHONHOME', 'PYTHONPATH', 'VIRTUAL_ENV', 'QT_PLUGIN_PATH', 'QT_QPA_PLATFORM_PLUGIN_PATH')) {
-            Remove-Item "Env:$name" -ErrorAction SilentlyContinue
-          }
-          $process = Start-Process $executable -WorkingDirectory $destination -ArgumentList '--smoke-test --screenshot preview.png' -PassThru
-          if (-not $process.WaitForExit(60000)) {
-            $process.Kill()
-            throw 'Standalone smoke test timed out'
-          }
-          if ($process.ExitCode -ne 0) { throw "Smoke test failed: $($process.ExitCode)" }
-          $preview = Join-Path $destination 'preview.png'
-          if (-not (Test-Path $preview) -or (Get-Item $preview).Length -eq 0) {
-            throw 'Standalone application did not render its window'
-          }
+          case "${{ runner.os }}" in
+            Linux) target=linux ;;
+            Windows) target=windows ;;
+            macOS) target=macos ;;
+          esac
+          python scripts/build.py --platform "$target"
       - uses: actions/upload-artifact@v6
         with:
           name: QuakeBundle-${{ matrix.os }}
           path: |
-            QuakeBundle-*.tar.gz
-            QuakeBundle-*.zip
+            dist/QuakeBundle-*.tar.gz
+            dist/QuakeBundle-*.zip
           if-no-files-found: error
