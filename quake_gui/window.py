@@ -335,16 +335,16 @@ class MainWindow(QMainWindow):
         self.cancel_button.hide()
         panel.addWidget(self.cancel_button)
         panel.addStretch()
-        details = QToolButton()
-        details.setText("View activity log")
-        details.setCheckable(True)
+        self.log_toggle = QToolButton()
+        self.log_toggle.setText("View activity log")
+        self.log_toggle.setCheckable(True)
         self.logs = QPlainTextEdit()
         self.logs.setReadOnly(True)
         self.logs.setMaximumBlockCount(1000)
         self.logs.setMaximumHeight(170)
         self.logs.hide()
-        details.toggled.connect(self.logs.setVisible)
-        panel.addWidget(details)
+        self.log_toggle.toggled.connect(self.logs.setVisible)
+        panel.addWidget(self.log_toggle)
         panel.addWidget(self.logs)
         open_folder = QPushButton("Open game folder")
         open_folder.clicked.connect(self.open_folder)
@@ -359,6 +359,8 @@ class MainWindow(QMainWindow):
     def select_edition(self, key):
         if self.worker or self.game:
             return
+        if key != self.edition.key:
+            self.reset_activity()
         self.edition = EDITIONS[key]
         self.edition_buttons[key].setChecked(True)
         self.settings.setValue("edition", key)
@@ -368,6 +370,25 @@ class MainWindow(QMainWindow):
         for widget in (self.team, self.fakename, self.team_label, self.fake_label):
             widget.setVisible(key == "multiplayer")
         self.directory_changed()
+
+    def reset_activity(self):
+        self.outcome = None
+        self.activity.setText("Ready to get started")
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress_text.setText("Waiting for installation")
+        for item in self.stage_labels:
+            item.setText("○   " + item.text()[4:])
+            item.setStyleSheet("")
+        self.logs.clear()
+        self.log_toggle.setChecked(False)
+        self.logs.hide()
+        self.auth.hide()
+        self.auth_label.clear()
+        self.secret.clear()
+        self.cancel_button.hide()
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setText("Cancel installation")
 
     def root_path(self):
         return parse_install_dir(self.directory.text().strip())
