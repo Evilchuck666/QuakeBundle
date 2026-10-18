@@ -5,10 +5,10 @@ if ($env:OS -ne 'Windows_NT') {
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw 'Instala uv para preparar automaticamente Python y las dependencias de compilacion.'
 }
-Push-Location $PSScriptRoot
+Push-Location (Join-Path $PSScriptRoot '..')
 try {
     & uv run --no-project --isolated --python 3.13 `
-        --with-requirements requirements-build.txt `
+        --with-requirements scripts/requirements-build.txt `
         python scripts/build.py --platform windows @args
     $buildResult = $LASTEXITCODE
 } finally {

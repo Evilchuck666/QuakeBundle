@@ -1,10 +1,10 @@
-# Build on the target OS: python -m PyInstaller --noconfirm QuakeBundle.spec
+# Build on the target OS: python -m PyInstaller --noconfirm scripts/QuakeBundle.spec
 from pathlib import Path
 import importlib
 import sys
 from PyInstaller.utils.hooks import collect_all
 
-root = Path(SPECPATH)
+root = Path(SPECPATH).resolve().parent
 # PyInstaller can report missing imports as warnings and still produce an EXE.
 # Check the build interpreter before touching an existing distribution.
 required_modules = ["PySide6.QtCore", "PySide6.QtGui", "PySide6.QtWidgets", "tqdm", "certifi"]
@@ -21,7 +21,7 @@ if dependency_errors:
         "Cannot build QuakeBundle: missing or unusable GUI dependencies.\n"
         + "\n".join(dependency_errors)
         + f"\nBuild interpreter: {sys.executable}\n"
-        + "Install requirements-build.txt with this same interpreter before building.\n"
+        + "Install scripts/requirements-build.txt with this same interpreter before building.\n"
         + "Use Python 3.13 to match the tested CI build environment.\n"
         + "See the Windows build commands in README.md."
     )

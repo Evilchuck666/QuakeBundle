@@ -11,7 +11,7 @@ try:
 except ImportError:
     sys.exit(
         "Missing tqdm. Use the standalone QuakeBundle application, "
-        "or install requirements-gui.txt in the development environment."
+        "or install scripts/requirements-gui.txt in the development environment."
     )
 
 

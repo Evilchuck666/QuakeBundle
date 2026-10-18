@@ -32,23 +32,23 @@ class BuildSpecTests(unittest.TestCase):
             if broken:
                 with self.assertRaises(SystemExit) as error:
                     runpy.run_path(
-                        str(root / "QuakeBundle.spec"),
+                        str(root / "scripts" / "QuakeBundle.spec"),
                         init_globals={
-                            "SPECPATH": str(root),
+                            "SPECPATH": str(root / "scripts"),
                             "Analysis": analysis,
                         },
                     )
                 self.assertIn(broken, str(error.exception))
-                self.assertIn("requirements-build.txt", str(error.exception))
+                self.assertIn("scripts/requirements-build.txt", str(error.exception))
                 self.assertIn(sys.executable, str(error.exception))
                 analysis.assert_not_called()
                 hooks.collect_all.assert_not_called()
             else:
                 with self.assertRaises(AnalysisReached):
                     runpy.run_path(
-                        str(root / "QuakeBundle.spec"),
+                        str(root / "scripts" / "QuakeBundle.spec"),
                         init_globals={
-                            "SPECPATH": str(root),
+                            "SPECPATH": str(root / "scripts"),
                             "Analysis": analysis,
                         },
                     )
@@ -85,9 +85,9 @@ class BuildSpecTests(unittest.TestCase):
                 # COLLECT and BUNDLE are deliberately unavailable: the output
                 # must not require a separate directory or application bundle.
                 runpy.run_path(
-                    str(root / "QuakeBundle.spec"),
+                    str(root / "scripts" / "QuakeBundle.spec"),
                     init_globals={
-                        "SPECPATH": str(root),
+                        "SPECPATH": str(root / "scripts"),
                         "Analysis": Mock(return_value=analysis),
                         "PYZ": Mock(return_value="bytecode"),
                         "EXE": exe,

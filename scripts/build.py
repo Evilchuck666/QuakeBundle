@@ -87,7 +87,7 @@ def main(argv=None):
             "PyInstaller",
             "--clean",
             "--noconfirm",
-            "QuakeBundle.spec",
+            "scripts/QuakeBundle.spec",
         ],
         cwd=ROOT,
         check=True,

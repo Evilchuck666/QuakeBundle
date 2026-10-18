@@ -70,11 +70,11 @@ Con `uv` instalado, ejecuta el script correspondiente **en el sistema de destino
 
 | Sistema | Comando | Paquete generado |
 | --- | --- | --- |
-| GNU/Linux | `./build-linux.sh` | `dist/QuakeBundle-linux-x64.tar.gz` |
-| Windows PowerShell | `.\build-windows.ps1` | `dist/QuakeBundle-windows-x64.zip` |
-| macOS | `./build-macos.sh` | `dist/QuakeBundle-macos-x64.zip` o `dist/QuakeBundle-macos-arm64.zip` |
+| GNU/Linux | `./scripts/build-linux.sh` | `dist/QuakeBundle-linux-x64.tar.gz` |
+| Windows PowerShell | `.\scripts\build-windows.ps1` | `dist/QuakeBundle-windows-x64.zip` |
+| macOS | `./scripts/build-macos.sh` | `dist/QuakeBundle-macos-x64.zip` o `dist/QuakeBundle-macos-arm64.zip` |
 
-Los scripts obtienen Python 3.13 y las dependencias de `requirements-build.txt`
+Los scripts obtienen Python 3.13 y las dependencias de `scripts/requirements-build.txt`
 mediante `uv`, en un entorno aislado. Después compilan el ejecutable `onefile`,
 lo prueban desde una carpeta temporal sin los archivos del proyecto y crean un
 archivo comprimido que contiene únicamente ese ejecutable. El binario también
@@ -96,9 +96,9 @@ python -m venv .venv
 # Linux / macOS:
 source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -r requirements-build.txt
+python -m pip install -r scripts/requirements-build.txt
 python quakebundle.py
-python -m PyInstaller --noconfirm QuakeBundle.spec
+python -m PyInstaller --noconfirm scripts/QuakeBundle.spec
 ```
 
 En **Windows PowerShell**, para utilizar el mismo Python 3.13 que CI, instala
@@ -106,8 +106,8 @@ esa versión en el equipo de compilación y ejecuta:
 
 ```powershell
 py -3.13 -m venv .venv-build
-.\.venv-build\Scripts\python.exe -m pip install -r requirements-build.txt
-.\.venv-build\Scripts\python.exe -m PyInstaller --clean --noconfirm .\QuakeBundle.spec
+.\.venv-build\Scripts\python.exe -m pip install -r scripts/requirements-build.txt
+.\.venv-build\Scripts\python.exe -m PyInstaller --clean --noconfirm .\scripts\QuakeBundle.spec
 ```
 
 Instalar solo PyInstaller no basta: todas las dependencias deben estar en el

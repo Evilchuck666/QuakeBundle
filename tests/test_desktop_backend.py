@@ -139,7 +139,7 @@ class DesktopConfigTests(unittest.TestCase):
 class DesktopProcessTests(unittest.TestCase):
     @unittest.skipIf(
         os.name == "nt" and importlib.util.find_spec("winpty") is None,
-        "Install requirements-gui.txt to test Windows GUI authentication",
+        "Install scripts/requirements-gui.txt to test Windows GUI authentication",
     )
     def test_fragmented_password_and_guard_prompts_use_stdin_without_logging_secrets(
         self,

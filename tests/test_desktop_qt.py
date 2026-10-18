@@ -30,7 +30,7 @@ if HAS_QT:
     )
 
 
-@unittest.skipUnless(HAS_QT, "Install requirements-gui.txt to run Qt tests")
+@unittest.skipUnless(HAS_QT, "Install scripts/requirements-gui.txt to run Qt tests")
 class DesktopQtTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

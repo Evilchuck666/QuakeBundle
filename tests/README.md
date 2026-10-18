@@ -7,7 +7,7 @@ or the standalone executable. `quake_gui/worker.py` coordinates installation;
 Install the development dependencies and run the offline checks:
 
 ```sh
-python -m pip install -r requirements-gui.txt
+python -m pip install -r scripts/requirements-gui.txt
 python -m unittest discover -s tests -v
 python quakebundle.py --smoke-test
 ```

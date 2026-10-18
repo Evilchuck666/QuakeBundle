@@ -22,7 +22,7 @@ if HAS_QT:
 
 
 @unittest.skipUnless(
-    HAS_QT, "Install requirements-gui.txt to run GUI installation tests"
+    HAS_QT, "Install scripts/requirements-gui.txt to run GUI installation tests"
 )
 class InstallationPathTests(unittest.TestCase):
     """Keep Steam and release downloads offline while installing real fixture files."""
