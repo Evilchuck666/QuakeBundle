@@ -20,7 +20,14 @@ if HAS_QT:
     from quake_gui.library import ASSETS, EDITIONS, configure
     from quake_gui.window import MainWindow
     from quake_gui.worker import InstallWorker
-    from quake_installer import ezquake, gamedata, interactive, shortcuts, steamcmd, vkquake
+    from quake_installer import (
+        ezquake,
+        gamedata,
+        interactive,
+        shortcuts,
+        steamcmd,
+        vkquake,
+    )
 
 
 @unittest.skipUnless(HAS_QT, "Install requirements-gui.txt to run Qt tests")
@@ -185,9 +192,13 @@ class DesktopQtTests(unittest.TestCase):
                 engine.assert_called_once_with(root)
                 cleanup.assert_called_once_with(keep_steamcmd=True)
                 shortcut = (
-                    self.root / ".local/share/applications" / f"{edition.engine}.desktop"
+                    self.root
+                    / ".local/share/applications"
+                    / f"{edition.engine}.desktop"
                 ).read_text(encoding="utf-8")
-                self.assertIn("Exec=" + shortcuts.desktop_argument(root / "engine"), shortcut)
+                self.assertIn(
+                    "Exec=" + shortcuts.desktop_argument(root / "engine"), shortcut
+                )
                 self.assertIn('"+exec"', shortcut)
                 self.assertIn("Terminal=false\n", shortcut)
                 launcher = root / "launcher.py"
