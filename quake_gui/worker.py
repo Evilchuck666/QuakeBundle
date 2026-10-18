@@ -141,12 +141,6 @@ class InstallWorker(QThread):
         self.next_stage(5, "Preparing your configuration")
         icon = f"{self.edition.engine}.svg"
         shutil.copyfile(ASSETS / "icons" / icon, self.root / icon)
-        launcher = self.root / "launcher.py"
-        shutil.copyfile(
-            ASSETS / "scripts" / self.edition.engine / "launcher.py", launcher
-        )
-        if system != "Windows":
-            launcher.chmod(0o755)
         directory = self.root / self.edition.config_dir
         directory.mkdir(parents=True, exist_ok=True)
         for name in self.edition.launcher.CONFIG_FILES:

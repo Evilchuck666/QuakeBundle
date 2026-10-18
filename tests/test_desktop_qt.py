@@ -201,13 +201,7 @@ class DesktopQtTests(unittest.TestCase):
                 )
                 self.assertIn('"+exec"', shortcut)
                 self.assertIn("Terminal=false\n", shortcut)
-                launcher = root / "launcher.py"
-                self.assertEqual(
-                    launcher.read_bytes(),
-                    (ASSETS / "scripts" / edition.engine / "launcher.py").read_bytes(),
-                )
-                if os.name != "nt":
-                    self.assertEqual(launcher.stat().st_mode & 0o777, 0o755)
+                self.assertFalse((root / "launcher.py").exists())
                 icon = f"{edition.engine}.svg"
                 self.assertEqual(
                     (root / icon).read_bytes(),
@@ -225,6 +219,48 @@ class DesktopQtTests(unittest.TestCase):
             worker.run()
         self.assertEqual(outcomes, ["error"])
         self.assertEqual(failures, ["download failed"])
+
+    def test_installation_failure_stops_later_steps_and_preserves_downloads(self):
+        for edition in EDITIONS.values():
+            campaign = edition.key == "singleplayer"
+            steps = [
+                "quake_gui.worker.steamcmd.check_rosetta",
+                "quake_gui.worker.steamcmd.install_steamcmd",
+                "quake_gui.worker.steamcmd.update_steamcmd",
+                "quake_gui.worker.interactive.login",
+                "quake_gui.worker.gamedata.download_quake",
+                "quake_gui.worker.gamedata.install_single_player_game_data"
+                if campaign
+                else "quake_gui.worker.gamedata.install_multiplayer_game_data",
+                "quake_gui.worker.vkquake.install_vkquake"
+                if campaign
+                else "quake_gui.worker.ezquake.install_ezquake",
+                "quake_gui.worker.configure",
+                "quake_gui.worker.create_shortcut",
+                "quake_gui.worker.gamedata.clean_up",
+            ]
+            for failed_step in range(4, len(steps) - 1):
+                with (
+                    self.subTest(edition=edition.key, step=steps[failed_step]),
+                    ExitStack() as stack,
+                ):
+                    mocks = [stack.enter_context(patch(step)) for step in steps]
+                    mocks[failed_step].side_effect = RuntimeError("synthetic failure")
+                    stack.enter_context(
+                        patch.object(edition.launcher, "resolve_engine")
+                    )
+                    stack.enter_context(patch("quake_gui.worker.shutil.copyfile"))
+                    worker = InstallWorker(
+                        edition, self.root / edition.key, "account", {}
+                    )
+                    outcomes, failures = [], []
+                    worker.completed.connect(outcomes.append)
+                    worker.failed.connect(failures.append)
+                    worker.run()
+                    self.assertEqual(outcomes, ["error"])
+                    self.assertEqual(failures, ["synthetic failure"])
+                    for later_step in mocks[failed_step + 1 :]:
+                        later_step.assert_not_called()
 
     def test_authentication_roundtrip_keeps_ui_responsive_and_clears_secret(self):
         window = self.window()

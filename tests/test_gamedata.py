@@ -7,6 +7,7 @@ import shutil
 import tempfile
 import unittest
 import zipfile
+from functools import partial
 from pathlib import Path
 from unittest.mock import patch
 
@@ -443,6 +444,81 @@ class DownloadProgressTests(unittest.TestCase):
         with patch.object(gamedata, "run_captured", side_effect=run):
             gamedata.download_quake(Path("steamcmd"), "test-user", 1)
         self.assertEqual(self.output.getvalue(), "    ✔ up to date (1.0 MB)\n")
+
+
+class GameDownloadTests(unittest.TestCase):
+    """Keep retry and completion validation independent of the GUI frontend."""
+
+    def setUp(self):
+        stack = contextlib.ExitStack()
+        self.addCleanup(stack.close)
+        root = Path(stack.enter_context(tempfile.TemporaryDirectory()))
+        self.download = root / "download"
+        self.steam = root / "steamcmd"
+        stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", self.download))
+        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+
+    def test_download_retries_and_forces_windows_depots(self):
+        """SteamCMD downloads should retry failures and force Windows depot downloads."""
+        responses = iter(
+            [
+                (1, ["temporary failure"]),
+                (
+                    0,
+                    [
+                        "Update state (0x61) downloading, progress: 50.00 (10 / 20)",
+                        "Update state (0x81) verifying, progress: 100.00 (20 / 20)",
+                        "Success! App '2310' fully installed.",
+                    ],
+                ),
+            ]
+        )
+
+        def run(_command, on_line):
+            code, lines = next(responses)
+            for line in lines:
+                on_line(line)
+            return code, lines
+
+        exe = self.steam / "steamcmd"
+        with patch.object(gamedata, "run_captured", side_effect=run) as captured:
+            gamedata.download_quake(exe, "test-user", 3)
+        self.assertEqual(captured.call_count, 2)
+        self.assertEqual(
+            captured.call_args.args[0],
+            [
+                str(exe),
+                "+@sSteamCmdForcePlatformType",
+                "windows",
+                "+force_install_dir",
+                str(self.download),
+                "+login",
+                "test-user",
+                "+app_update",
+                "2310",
+                "+quit",
+            ],
+        )
+
+    def test_download_requires_both_success_message_and_zero_exit(self):
+        """The game download should fail if the success message or exit code is missing."""
+
+        def run(returncode, output_lines, command, on_line):
+            del command
+            for line in output_lines:
+                on_line(line)
+            return returncode, output_lines
+
+        for code, lines in ((0, []), (1, ["Success! App '2310' fully installed."])):
+            with self.subTest(code=code):
+                with (
+                    patch.object(
+                        gamedata, "run_captured", side_effect=partial(run, code, lines)
+                    ) as captured,
+                    self.assertRaisesRegex(SystemExit, "Could not download Quake"),
+                ):
+                    gamedata.download_quake(self.steam / "steamcmd", "test-user", 2)
+                self.assertEqual(captured.call_count, 2)
 
 
 if __name__ == "__main__":

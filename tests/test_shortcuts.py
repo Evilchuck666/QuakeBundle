@@ -2,7 +2,6 @@
 
 import base64
 import contextlib
-import io
 import json
 import os
 import plistlib
@@ -16,8 +15,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import multiplayer
-import singleplayer
 from quake_installer import shortcuts
 
 
@@ -30,9 +27,6 @@ class ShortcutTests(unittest.TestCase):
     desktop = "vkQuake.desktop"
     icon = "vkQuake"
     bundle_id = "com.quakebundle.singleplayer"
-    installer = singleplayer
-    install_directory = "INSTALL_SINGLE_PLAYER_DIR"
-    install_function = "install_vkquake_shortcut"
 
     def setUp(self):
         """Prepare an isolated home directory and native shortcut fixtures."""
@@ -390,36 +384,6 @@ $link | Select-Object TargetPath,WorkingDirectory,IconLocation | ConvertTo-Json 
                 self.assertTrue((destination / "Contents/document.wflow").is_file())
                 self.assertEqual(list(destination.parent.iterdir()), [destination])
 
-    def test_installer_dispatches_to_current_platform(self):
-        """Dispatch shortcut installation to the current platform's helper."""
-        for system, helper in (
-            ("Linux", "create_linux_shortcut"),
-            ("Windows", "create_windows_shortcut"),
-            ("Darwin", "create_macos_shortcut"),
-        ):
-            for directory in (None, self.root / "custom location"):
-                with (
-                    self.subTest(system=system, directory=directory),
-                    patch.object(
-                        self.installer.platform, "system", return_value=system
-                    ),
-                    patch.object(self.installer, self.install_directory, self.root),
-                    patch.object(self.installer, helper) as create,
-                    contextlib.redirect_stdout(io.StringIO()),
-                ):
-                    if directory is None:
-                        getattr(self.installer, self.install_function)()
-                    else:
-                        getattr(self.installer, self.install_function)(directory)
-                    expected = [
-                        (self.root if directory is None else directory).resolve()
-                    ]
-                    if system != "Windows":
-                        expected.append(self.python)
-                    if system == "Linux":
-                        expected.append(self.installer.fetch)
-                    create.assert_called_once_with(*expected, self.shortcut)
-
 
 class EzQuakeShortcutTests(ShortcutTests):
     """Apply the same platform, quoting and recovery checks to multiplayer."""
@@ -430,6 +394,3 @@ class EzQuakeShortcutTests(ShortcutTests):
     desktop = "ezQuake.desktop"
     icon = "ezQuake"
     bundle_id = "com.quakebundle.multiplayer"
-    installer = multiplayer
-    install_directory = "INSTALL_MULTIPLAYER_DIR"
-    install_function = "install_ezquake_shortcut"

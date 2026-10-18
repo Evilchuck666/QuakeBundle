@@ -10,8 +10,8 @@ try:
     from tqdm import tqdm
 except ImportError:
     sys.exit(
-        'This script needs tqdm: install it with "pip install tqdm"'
-        ', or run "uv run singleplayer.py"'
+        "Missing tqdm. Use the standalone QuakeBundle application, "
+        "or install requirements-gui.txt in the development environment."
     )
 
 

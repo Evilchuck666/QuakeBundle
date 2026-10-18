@@ -25,17 +25,16 @@ el paquete completo y abre `QuakeBundle` (Linux), `QuakeBundle.exe` (Windows) o
 No necesitas instalar Python, pip ni PySide6, ni ejecutar comandos.
 **Code → Download ZIP** descarga el código fuente, no la aplicación autónoma.
 
-El código continúa en Python para reutilizar los instaladores existentes;
+La GUI y su lógica de instalación están escritas en Python;
 PyInstaller incluye su intérprete en la aplicación. Es una distribución autónoma
 en una carpeta, no un binario estático universal. Cada sistema y arquitectura
 necesita su propia compilación. Véase la
 [documentación de PyInstaller](https://pyinstaller.org/en/stable/operating-mode.html).
 
 La aplicación instala y abre los motores directamente, sin necesitar un intérprete
-externo para jugar desde la GUI. Los ajustes iniciales, el icono SVG y el
-`launcher.py` de cada motor se copian desde los recursos incluidos a la carpeta
-de instalación. El lanzador permite abrir el juego fuera de la GUI y requiere
-Python instalado para ejecutarlo. Al terminar la instalación, la GUI crea un
+externo para jugar desde la GUI. Los ajustes iniciales y los iconos se copian
+desde los recursos incluidos a la carpeta de instalación. La GUI es la única
+interfaz del instalador. Al terminar la instalación, crea un
 acceso directo al motor que funciona sin Python: en el menú de aplicaciones de
 Linux, el escritorio de Windows o `~/Applications` en macOS. Se actualiza al
 reinstalar. Las configuraciones
@@ -112,6 +111,5 @@ plataforma. Cancelar detiene las descargas/procesos controlados; durante una cop
 o extracción se espera al siguiente punto seguro. Cerrar la ventana durante una
 instalación solicita cancelación y espera al hilo de trabajo.
 
-Los comandos originales `singleplayer.py` y `multiplayer.py` siguen disponibles;
-su uso desde fuentes y sus lanzadores antiguos sí requieren Python. Consulta
-[tests/README.md](tests/README.md) para ese flujo.
+Consulta [tests/README.md](tests/README.md) para conocer la cobertura de la GUI
+y de los módulos internos de instalación.

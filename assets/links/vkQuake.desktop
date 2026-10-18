@@ -1,4 +1,4 @@
-# Template: singleplayer.py fills in the paths using --install-dir or its default.
+# Template: the GUI fills in paths and the native engine command.
 # For manual installation, replace @PYTHON@ and @INSTALL_DIR@ with absolute paths.
 # launcher.py must be installed beside vkQuake.AppImage and the id1 directory.
 # Use assets/icons/vkQuake.svg as the icon. Do not use ~ or $HOME in these paths.

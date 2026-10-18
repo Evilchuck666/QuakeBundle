@@ -13,8 +13,6 @@ analysis = Analysis(
     datas=[(str(root / "assets" / "cfg"), "assets/cfg"),
            (str(root / "assets" / "icons"), "assets/icons"),
            (str(root / "assets" / "links"), "assets/links"),
-           (str(root / "assets/scripts/vkQuake/launcher.py"), "assets/scripts/vkQuake"),
-           (str(root / "assets/scripts/ezQuake/launcher.py"), "assets/scripts/ezQuake"),
            (str(root / "README.md"), ".")] + console_datas,
     binaries=console_binaries,
     hiddenimports=["certifi"] + console_imports,
