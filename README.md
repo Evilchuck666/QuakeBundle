@@ -75,6 +75,20 @@ python quakebundle.py
 python -m PyInstaller --noconfirm QuakeBundle.spec
 ```
 
+En **Windows PowerShell**, para utilizar el mismo Python 3.13 que CI, instala
+esa versión en el equipo de compilación y ejecuta:
+
+```powershell
+py -3.13 -m venv .venv-build
+.\.venv-build\Scripts\python.exe -m pip install -r requirements-build.txt
+.\.venv-build\Scripts\python.exe -m PyInstaller --clean --noconfirm .\QuakeBundle.spec
+```
+
+Instalar solo PyInstaller no basta: todas las dependencias deben estar en el
+mismo entorno desde el que se compila. El `.spec` comprueba sus importaciones
+y detiene la compilación si faltan o no se pueden cargar. Este Python solo se
+necesita para construir; el paquete resultante incluye el intérprete y la GUI.
+
 La salida está en `dist/QuakeBundle/` o `dist/QuakeBundle.app/`. La compilación
 incluye los plugins de Qt mediante los hooks de PyInstaller. El workflow
 **Build Qt6 desktop** construye, verifica y archiva las aplicaciones para Linux
