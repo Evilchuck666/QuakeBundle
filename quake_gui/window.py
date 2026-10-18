@@ -262,15 +262,15 @@ class MainWindow(QMainWindow):
         )
         left.addWidget(self.form)
 
-        actions = QHBoxLayout()
+        self.actions = QHBoxLayout()
         self.install_button = QPushButton("Install campaign")
         self.install_button.setObjectName("primary")
         self.install_button.clicked.connect(self.start_install)
-        actions.addWidget(self.install_button, 1)
+        self.actions.addWidget(self.install_button, 1)
         self.play_button = QPushButton("▶  Play")
         self.play_button.clicked.connect(self.play)
-        actions.addWidget(self.play_button)
-        left.addLayout(actions)
+        self.actions.addWidget(self.play_button)
+        left.addLayout(self.actions)
         self.mods = QComboBox()
         self.mods.setAccessibleName("Game or expansion")
         left.addWidget(self.mods)
@@ -423,6 +423,22 @@ class MainWindow(QMainWindow):
             if ready
             else f"Install {self.edition.title.lower()}"
         )
+        primary, secondary = (
+            (self.play_button, self.install_button)
+            if ready
+            else (self.install_button, self.play_button)
+        )
+        if self.actions.itemAt(0).widget() is not primary:
+            self.actions.removeWidget(primary)
+            self.actions.removeWidget(secondary)
+            self.actions.addWidget(primary, 1)
+            self.actions.addWidget(secondary)
+            for button, name in ((primary, "primary"), (secondary, "")):
+                button.setObjectName(name)
+                button.style().unpolish(button)
+                button.style().polish(button)
+                button.update()
+            self.setTabOrder(primary, secondary)
         self.play_button.setEnabled(ready and not busy)
         self.mods.setEnabled(ready and not busy)
         self.mods.setVisible(ready)
