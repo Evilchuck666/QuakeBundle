@@ -31,9 +31,14 @@ class MultiplayerCleanupTests(unittest.TestCase):
                 "ezquake/Online Manual.url",
             )
             preserved = (
-                "ezquake/ezquake.pk3", "ezquake/other.cfg",
-                "qw/config.cfg", "id1/pak0.pak", "launcher.py",
-                "configs/player.cfg", "gnu.txt", "Online Manual.url",
+                "ezquake/ezquake.pk3",
+                "ezquake/other.cfg",
+                "qw/config.cfg",
+                "id1/pak0.pak",
+                "launcher.py",
+                "configs/player.cfg",
+                "gnu.txt",
+                "Online Manual.url",
             )
             for name in removed + preserved:
                 path = root / name

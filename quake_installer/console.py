@@ -22,7 +22,9 @@ def progress_bar(**kwargs) -> tqdm:
     """
     if observer := current.get():
         return Progress(observer, **kwargs)
-    return tqdm(file=sys.stdout, disable=None, leave=False, dynamic_ncols=True, **kwargs)
+    return tqdm(
+        file=sys.stdout, disable=None, leave=False, dynamic_ncols=True, **kwargs
+    )
 
 
 def byte_bar(**kwargs) -> tqdm:

@@ -37,7 +37,9 @@ def vkquake_release() -> tuple[str, dict] | None:
             if not batch:
                 break
 
-            releases += [r for r in batch if r["tag_name"].lower().startswith("vkquake")]
+            releases += [
+                r for r in batch if r["tag_name"].lower().startswith("vkquake")
+            ]
 
         for release in sorted(releases, key=lambda r: r["published_at"], reverse=True):
             for asset in release["assets"]:
@@ -70,7 +72,15 @@ def install_vkquake_mac(image: Path, install_dir: Path | None = None) -> Path:
         mountpoint.mkdir()
 
         subprocess.run(
-            ["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, image],
+            [
+                "hdiutil",
+                "attach",
+                "-nobrowse",
+                "-readonly",
+                "-mountpoint",
+                mountpoint,
+                image,
+            ],
             check=True,
             stdout=subprocess.DEVNULL,
         )
@@ -85,7 +95,7 @@ def install_vkquake_mac(image: Path, install_dir: Path | None = None) -> Path:
             subprocess.run(
                 ["hdiutil", "detach", mountpoint],
                 check=False,
-                stdout=subprocess.DEVNULL
+                stdout=subprocess.DEVNULL,
             )
 
     return dest
@@ -96,7 +106,9 @@ def install_vkquake(install_dir: Path | None = None) -> None:
     install_dir = INSTALL_SINGLE_PLAYER_DIR if install_dir is None else install_dir
     found = vkquake_release()
     if found is None:
-        print(f"    No vkQuake build for {platform.system()} {platform.machine()}; skipping")
+        print(
+            f"    No vkQuake build for {platform.system()} {platform.machine()}; skipping"
+        )
         return
 
     version, asset = found
@@ -109,12 +121,16 @@ def install_vkquake(install_dir: Path | None = None) -> None:
     # Keep the temporary file on the install filesystem so the AppImage can
     # replace the previous version without an extra copy or a partial write.
     with tempfile.TemporaryDirectory(dir=install_dir) as tmp:
-        download = Path(tmp) / ("vkQuake.dmg" if system == "Darwin" else "vkQuake.download")
+        download = Path(tmp) / (
+            "vkQuake.dmg" if system == "Darwin" else "vkQuake.download"
+        )
         fetch(asset["browser_download_url"], download)
 
         if system == "Darwin":
             installed = install_vkquake_mac(download, install_dir)
-            instructions = "    Run it by opening vkQuake.app; it uses the folder it is in."
+            instructions = (
+                "    Run it by opening vkQuake.app; it uses the folder it is in."
+            )
         elif system == "Windows":
             with zipfile.ZipFile(download) as archive:
                 for info in archive.infolist():

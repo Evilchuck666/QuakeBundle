@@ -36,7 +36,11 @@ class CommandLineTests(unittest.TestCase):
                 PYTHONIOENCODING="utf-8",
             )
             return subprocess.run(
-                [sys.executable, str(Path(self.installer.__file__).resolve()), *arguments],
+                [
+                    sys.executable,
+                    str(Path(self.installer.__file__).resolve()),
+                    *arguments,
+                ],
                 cwd=directory,
                 env=env,
                 capture_output=True,
@@ -78,8 +82,11 @@ class ImportCompatibilityTests(unittest.TestCase):
         source = Path(singleplayer.__file__).resolve()
         self.script = self.root / source.name
         shutil.copyfile(source, self.script)
-        shutil.copytree(source.parent / "quake_installer", self.root / "quake_installer",
-                        ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(
+            source.parent / "quake_installer",
+            self.root / "quake_installer",
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
         self.working_dir = self.root / "elsewhere"
         self.working_dir.mkdir()
 
@@ -90,8 +97,7 @@ class ImportCompatibilityTests(unittest.TestCase):
             "from pathlib import Path\n"
             "source = sys.argv[1]\n"
             "before_path = sys.path[:]\n"
-            "before_bytecode = sys.dont_write_bytecode\n"
-            + body + "\n"
+            "before_bytecode = sys.dont_write_bytecode\n" + body + "\n"
             "assert sys.path == before_path\n"
             "assert sys.dont_write_bytecode == before_bytecode\n"
         )
@@ -99,8 +105,12 @@ class ImportCompatibilityTests(unittest.TestCase):
         env.pop("PYTHONDONTWRITEBYTECODE", None)
         result = subprocess.run(
             [sys.executable, "-c", code, str(self.script)],
-            cwd=self.working_dir, env=env, capture_output=True, text=True,
-            timeout=30, check=False,
+            cwd=self.working_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(list(self.root.rglob("__pycache__")), [])
@@ -145,9 +155,13 @@ class VkQuakeAssetTests(unittest.TestCase):
         """Use local source files and a fresh installation directory."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake assets ")))
+        self.root = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="quake assets "))
+        )
         self.install = self.root / "singleplayer"
-        stack.enter_context(patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install))
+        stack.enter_context(
+            patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install)
+        )
         self.system = stack.enter_context(patch.object(singleplayer.platform, "system"))
         self.system.return_value = "Linux"
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
@@ -161,18 +175,18 @@ class VkQuakeAssetTests(unittest.TestCase):
         ):
             with self.subTest(system=system):
                 self.system.return_value = system
-                with patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install / system):
+                with patch.object(
+                    singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install / system
+                ):
                     self.check_downloaded_assets(self.install / system, launcher, icon)
 
     def check_downloaded_assets(self, install, launcher, icon):
         """Verify downloaded bytes, filenames and launcher/icon permissions."""
         sources = Path(singleplayer.__file__).resolve().parent / "assets"
         expected = {
-            "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/" + relative:
-            sources / relative
-            for relative in (
-                f"scripts/vkQuake/{launcher}", f"icons/{icon}"
-            )
+            "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
+            + relative: sources / relative
+            for relative in (f"scripts/vkQuake/{launcher}", f"icons/{icon}")
         }
         # The Windows launcher is a build artifact, not a checked-in executable.
         # Exercise the download with a synthetic payload just like other binaries.
@@ -188,17 +202,24 @@ class VkQuakeAssetTests(unittest.TestCase):
         with patch.object(singleplayer, "fetch", side_effect=local_fetch) as download:
             singleplayer.install_vkquake_assets()
 
-        self.assertEqual([args.args[0] for args in download.call_args_list], list(expected))
-        self.assertEqual(sorted(p.name for p in install.iterdir()),
-                         sorted([launcher, icon]))
+        self.assertEqual(
+            [args.args[0] for args in download.call_args_list], list(expected)
+        )
+        self.assertEqual(
+            sorted(p.name for p in install.iterdir()), sorted([launcher, icon])
+        )
         for source in expected.values():
             installed = install / source.name
             self.assertEqual(installed.read_bytes(), source.read_bytes())
             if os.name != "nt":
-                self.assertEqual(installed.stat().st_mode & 0o777,
-                                 0o755 if source.name == launcher else 0o644)
+                self.assertEqual(
+                    installed.stat().st_mode & 0o777,
+                    0o755 if source.name == launcher else 0o644,
+                )
 
-    def test_failed_download_preserves_existing_assets_and_removes_temporary_files(self):
+    def test_failed_download_preserves_existing_assets_and_removes_temporary_files(
+        self,
+    ):
         """A partial download must not overwrite an existing installation."""
         self.install.mkdir()
         names = ("launcher.py", "vkQuake.svg")
@@ -213,7 +234,7 @@ class VkQuakeAssetTests(unittest.TestCase):
 
         with (
             patch.object(singleplayer, "fetch", side_effect=failing_fetch),
-            self.assertRaisesRegex(OSError, "download interrupted")
+            self.assertRaisesRegex(OSError, "download interrupted"),
         ):
             singleplayer.install_vkquake_assets()
 
@@ -229,14 +250,16 @@ class InstallerTests(unittest.TestCase):
         """Create isolated game-install directories for each test."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        self.root = Path(stack.enter_context(
-            tempfile.TemporaryDirectory(prefix="quake install ")
-        )).resolve()
+        self.root = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="quake install "))
+        ).resolve()
         self.download = self.root / "download"
         self.rerelease = self.download / "rerelease"
         self.install = self.root / "singleplayer"
         self.steam = self.root / "steamcmd"
-        stack.enter_context(patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install))
+        stack.enter_context(
+            patch.object(singleplayer, "INSTALL_SINGLE_PLAYER_DIR", self.install)
+        )
         for name, value in {
             "DOWNLOAD_DIR": self.download,
             "RERELEASE_DIR": self.rerelease,
@@ -266,14 +289,21 @@ class InstallerTests(unittest.TestCase):
     def main_dependencies(self, arguments, username="environment-user"):
         """Patch the CLI dependencies needed when exercising main()."""
         with contextlib.ExitStack() as stack:
-            stack.enter_context(patch.object(sys, "argv", ["singleplayer.py", *arguments]))
+            stack.enter_context(
+                patch.object(sys, "argv", ["singleplayer.py", *arguments])
+            )
             stack.enter_context(patch.dict(os.environ, {"STEAM_USERNAME": username}))
             # main() reconfigures stdout, which StringIO does not support.
             output = stack.enter_context(patch.object(singleplayer.sys, "stdout"))
             calls = Mock()
             for name in (
-                "check_rosetta", "install_steamcmd", "update_steamcmd", "login",
-                "download_quake", "install_vkquake", "install_vkquake_assets",
+                "check_rosetta",
+                "install_steamcmd",
+                "update_steamcmd",
+                "login",
+                "download_quake",
+                "install_vkquake",
+                "install_vkquake_assets",
                 "install_vkquake_shortcut",
             ):
                 mock = stack.enter_context(patch.object(singleplayer, name))
@@ -287,7 +317,10 @@ class InstallerTests(unittest.TestCase):
         self.write(self.install / "id1/pak0.pak", b"old data")
         self.write(self.install / "id1/save.sav", b"saved game")
         self.write(self.install / "id1/config.cfg", b"settings")
-        with self.main_dependencies(["--attempts", "2", "argument-user"]) as (calls, output):
+        with self.main_dependencies(["--attempts", "2", "argument-user"]) as (
+            calls,
+            output,
+        ):
             # vkQuake must run after installation and cleanup have succeeded.
             def check_engine_install(install_dir):
                 self.assertEqual(install_dir, self.install)
@@ -298,17 +331,30 @@ class InstallerTests(unittest.TestCase):
             calls.install_vkquake.side_effect = check_engine_install
             singleplayer.main()
             exe = self.steam / "steamcmd"
-            self.assertEqual(calls.mock_calls, [
-                call.check_rosetta(), call.install_steamcmd(),
-                call.update_steamcmd(exe), call.login(exe, "argument-user"),
-                call.download_quake(exe, "argument-user", 2), call.install_vkquake(self.install),
-                call.install_vkquake_assets(self.install), call.install_vkquake_shortcut(self.install),
-            ])
+            self.assertEqual(
+                calls.mock_calls,
+                [
+                    call.check_rosetta(),
+                    call.install_steamcmd(),
+                    call.update_steamcmd(exe),
+                    call.login(exe, "argument-user"),
+                    call.download_quake(exe, "argument-user", 2),
+                    call.install_vkquake(self.install),
+                    call.install_vkquake_assets(self.install),
+                    call.install_vkquake_shortcut(self.install),
+                ],
+            )
             output.reconfigure.assert_called_once_with(errors="replace")
         for relative in gamedata.EXPECTED_FILES:
-            self.assertEqual((self.install / relative).read_bytes(), b"synthetic game data")
-        self.assertEqual((self.install / "id1/music/track02.ogg").read_bytes(), b"music")
-        self.assertEqual((self.install / "mg1/pak0.pak").read_bytes(), b"extra expansion")
+            self.assertEqual(
+                (self.install / relative).read_bytes(), b"synthetic game data"
+            )
+        self.assertEqual(
+            (self.install / "id1/music/track02.ogg").read_bytes(), b"music"
+        )
+        self.assertEqual(
+            (self.install / "mg1/pak0.pak").read_bytes(), b"extra expansion"
+        )
         self.assertEqual((self.install / "id1/save.sav").read_bytes(), b"saved game")
         self.assertEqual((self.install / "id1/config.cfg").read_bytes(), b"settings")
         self.assertFalse((self.install / "Quake_x64.exe").exists())
@@ -318,7 +364,9 @@ class InstallerTests(unittest.TestCase):
         self.make_download()
         with self.main_dependencies([]) as (calls, _):
             singleplayer.main()
-            calls.login.assert_called_once_with(self.steam / "steamcmd", "environment-user")
+            calls.login.assert_called_once_with(
+                self.steam / "steamcmd", "environment-user"
+            )
             calls.download_quake.assert_called_once_with(
                 self.steam / "steamcmd", "environment-user", 3
             )
@@ -359,9 +407,13 @@ class InstallerTests(unittest.TestCase):
         self.make_download()
         with self.main_dependencies([]) as (calls, output):
             calls.install_vkquake_shortcut.side_effect = OSError("permission denied")
-            with self.assertRaisesRegex(SystemExit, "Could not create vkQuake shortcut"):
+            with self.assertRaisesRegex(
+                SystemExit, "Could not create vkQuake shortcut"
+            ):
                 singleplayer.main()
-            self.assertNotIn("Done.", "".join(str(c) for c in output.write.call_args_list))
+            self.assertNotIn(
+                "Done.", "".join(str(c) for c in output.write.call_args_list)
+            )
         self.assertTrue((self.install / "id1/pak0.pak").is_file())
 
     def test_download_failure_stops_before_installation_and_cleanup(self):
@@ -378,14 +430,19 @@ class InstallerTests(unittest.TestCase):
 
     def test_download_retries_and_forces_windows_depots(self):
         """SteamCMD downloads should retry failures and force Windows depot downloads."""
-        responses = iter([
-            (1, ["temporary failure"]),
-            (0, [
-                "Update state (0x61) downloading, progress: 50.00 (10 / 20)",
-                "Update state (0x81) verifying, progress: 100.00 (20 / 20)",
-                "Success! App '2310' fully installed.",
-            ]),
-        ])
+        responses = iter(
+            [
+                (1, ["temporary failure"]),
+                (
+                    0,
+                    [
+                        "Update state (0x61) downloading, progress: 50.00 (10 / 20)",
+                        "Update state (0x81) verifying, progress: 100.00 (20 / 20)",
+                        "Success! App '2310' fully installed.",
+                    ],
+                ),
+            ]
+        )
 
         def run(_command, on_line):
             code, lines = next(responses)
@@ -397,14 +454,25 @@ class InstallerTests(unittest.TestCase):
         with patch.object(gamedata, "run_captured", side_effect=run) as captured:
             gamedata.download_quake(exe, "test-user", 3)
         self.assertEqual(captured.call_count, 2)
-        self.assertEqual(captured.call_args.args[0], [
-            str(exe), "+@sSteamCmdForcePlatformType", "windows",
-            "+force_install_dir", str(self.download), "+login", "test-user",
-            "+app_update", "2310", "+quit",
-        ])
+        self.assertEqual(
+            captured.call_args.args[0],
+            [
+                str(exe),
+                "+@sSteamCmdForcePlatformType",
+                "windows",
+                "+force_install_dir",
+                str(self.download),
+                "+login",
+                "test-user",
+                "+app_update",
+                "2310",
+                "+quit",
+            ],
+        )
 
     def test_download_requires_both_success_message_and_zero_exit(self):
         """The game download should fail if the success message or exit code is missing."""
+
         def run(returncode, output_lines, command, on_line):
             del command
             for line in output_lines:
@@ -417,7 +485,7 @@ class InstallerTests(unittest.TestCase):
                     patch.object(
                         gamedata, "run_captured", side_effect=partial(run, code, lines)
                     ) as captured,
-                    self.assertRaisesRegex(SystemExit, "Could not download Quake")
+                    self.assertRaisesRegex(SystemExit, "Could not download Quake"),
                 ):
                     gamedata.download_quake(self.steam / "steamcmd", "test-user", 2)
                 self.assertEqual(captured.call_count, 2)

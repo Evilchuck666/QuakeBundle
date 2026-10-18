@@ -34,10 +34,14 @@ def curl_get(url: str):
                 stderr=subprocess.PIPE,
             )
         except FileNotFoundError:
-            sys.exit(f"Could not verify the certificate of {url}, and curl is not available")
+            sys.exit(
+                f"Could not verify the certificate of {url}, and curl is not available"
+            )
 
         if result.returncode != 0:
-            sys.exit(f"Could not download {url}: {result.stderr.decode(errors='replace').strip()}")
+            sys.exit(
+                f"Could not download {url}: {result.stderr.decode(errors='replace').strip()}"
+            )
 
         headers = email.message.Message()
         headers["Content-Length"] = str(response.tell())
@@ -59,7 +63,10 @@ def open_url(url: str):
         import certifi
 
         observer.checkpoint()
-        options = {"timeout": 30, "context": ssl.create_default_context(cafile=certifi.where())}
+        options = {
+            "timeout": 30,
+            "context": ssl.create_default_context(cafile=certifi.where()),
+        }
 
     try:
         return urllib.request.urlopen(request, **options)

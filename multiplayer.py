@@ -182,7 +182,9 @@ def install_ezquake_assets(install_dir: Path | None = None) -> None:
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
-    icon = {"Windows": "ezQuake.ico", "Darwin": "ezQuake.png"}.get(system, "ezQuake.svg")
+    icon = {"Windows": "ezQuake.ico", "Darwin": "ezQuake.png"}.get(
+        system, "ezQuake.svg"
+    )
     assets = (
         (f"scripts/ezQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),
@@ -190,9 +192,7 @@ def install_ezquake_assets(install_dir: Path | None = None) -> None:
     install_dir.mkdir(parents=True, exist_ok=True)
 
     # Finish every download before replacing files from a previous installation.
-    with tempfile.TemporaryDirectory(
-        prefix=".ezquake-assets-", dir=install_dir
-    ) as tmp:
+    with tempfile.TemporaryDirectory(prefix=".ezquake-assets-", dir=install_dir) as tmp:
         staging = Path(tmp)
         for relative, filename in assets:
             print(f"    Downloading {filename}")
@@ -235,8 +235,11 @@ def main() -> None:
 
     parser.add_argument("--attempts", type=int, default=3, help="steamcmd retries")
     parser.add_argument(
-        "--install-dir", type=parse_install_dir, default=str(INSTALL_MULTIPLAYER_DIR),
-        metavar="PATH", help="game installation directory (default: %(default)s)",
+        "--install-dir",
+        type=parse_install_dir,
+        default=str(INSTALL_MULTIPLAYER_DIR),
+        metavar="PATH",
+        help="game installation directory (default: %(default)s)",
     )
 
     args = parser.parse_args()

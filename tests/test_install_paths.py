@@ -32,11 +32,15 @@ class InstallationPathTests(unittest.TestCase):
         self.steam = self.home / "cache/steamcmd"
         self.assets = Path(__file__).resolve().parents[1] / "assets"
         stack.enter_context(patch.object(Path, "home", return_value=self.home))
-        stack.enter_context(patch.dict(os.environ, HOME=str(self.home), USERPROFILE=str(self.home)))
+        stack.enter_context(
+            patch.dict(os.environ, HOME=str(self.home), USERPROFILE=str(self.home))
+        )
         stack.enter_context(patch.object(config, "DOWNLOAD_DIR", self.download))
         stack.enter_context(patch.object(config, "STEAMCMD_DIR", self.steam))
         stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", self.download))
-        stack.enter_context(patch.object(gamedata, "RERELEASE_DIR", self.download / "rerelease"))
+        stack.enter_context(
+            patch.object(gamedata, "RERELEASE_DIR", self.download / "rerelease")
+        )
         stack.enter_context(patch.object(gamedata, "STEAMCMD_DIR", self.steam))
         stack.enter_context(patch.object(sys, "stdout"))
         for module, name in (
@@ -47,7 +51,9 @@ class InstallationPathTests(unittest.TestCase):
             (ezquake, "INSTALL_MULTIPLAYER_DIR"),
             (gamedata, "INSTALL_MULTIPLAYER_DIR"),
         ):
-            stack.enter_context(patch.object(module, name, self.home / "defaults" / name))
+            stack.enter_context(
+                patch.object(module, name, self.home / "defaults" / name)
+            )
 
     @staticmethod
     def write(path, data):
@@ -63,7 +69,9 @@ class InstallationPathTests(unittest.TestCase):
 
     def fetch_nquake(self, url, destination):
         if url == config.NQUAKE_INI_URL:
-            destination.write_text("[mirror_addresses]\n1=https://example.test/nquake\n")
+            destination.write_text(
+                "[mirror_addresses]\n1=https://example.test/nquake\n"
+            )
         else:
             with zipfile.ZipFile(destination, "w") as archive:
                 archive.writestr("qw/" + url.rsplit("/", 1)[-1] + ".pk3", b"addon")
@@ -76,8 +84,14 @@ class InstallationPathTests(unittest.TestCase):
     def run_installer(self, installer, argument, expected, cross_device=False):
         engine = vkquake if installer is singleplayer else ezquake
         name = "vkQuake" if installer is singleplayer else "ezQuake"
-        release_function = "vkquake_release" if installer is singleplayer else "ezquake_release"
-        binary = "vkQuake.AppImage" if installer is singleplayer else "ezQuake-x86_64.AppImage"
+        release_function = (
+            "vkquake_release" if installer is singleplayer else "ezquake_release"
+        )
+        binary = (
+            "vkQuake.AppImage"
+            if installer is singleplayer
+            else "ezQuake-x86_64.AppImage"
+        )
 
         def fetch_engine(_url, destination):
             if installer is singleplayer:
@@ -97,31 +111,71 @@ class InstallationPathTests(unittest.TestCase):
         self.write(expected / "id1/pak0.pak", b"previous data")
         arguments = [] if argument is None else ["--install-dir", argument]
         with contextlib.ExitStack() as stack:
-            stack.enter_context(patch.object(sys, "argv", [installer.__file__, *arguments, "user"]))
-            stack.enter_context(patch.object(installer.platform, "system", return_value="Linux"))
-            for function in ("check_rosetta", "install_steamcmd", "update_steamcmd", "login"):
+            stack.enter_context(
+                patch.object(sys, "argv", [installer.__file__, *arguments, "user"])
+            )
+            stack.enter_context(
+                patch.object(installer.platform, "system", return_value="Linux")
+            )
+            for function in (
+                "check_rosetta",
+                "install_steamcmd",
+                "update_steamcmd",
+                "login",
+            ):
                 stack.enter_context(patch.object(installer, function))
-            stack.enter_context(patch.object(installer, "download_quake", self.download_game))
+            stack.enter_context(
+                patch.object(installer, "download_quake", self.download_game)
+            )
             stack.enter_context(patch.object(installer, "fetch", self.fetch_asset))
             stack.enter_context(patch.object(gamedata, "fetch", self.fetch_nquake))
-            stack.enter_context(patch.object(engine, release_function, return_value=(
-                "test", {"name": binary, "browser_download_url": "https://example.test/engine"})))
+            stack.enter_context(
+                patch.object(
+                    engine,
+                    release_function,
+                    return_value=(
+                        "test",
+                        {
+                            "name": binary,
+                            "browser_download_url": "https://example.test/engine",
+                        },
+                    ),
+                )
+            )
             stack.enter_context(patch.object(engine, "fetch", fetch_engine))
             if cross_device:
-                stack.enter_context(patch.object(os, "replace", side_effect=lambda s, d:
-                    cross_device_move(original_replace, s, d)))
-                stack.enter_context(patch.object(os, "rename", side_effect=lambda s, d:
-                    cross_device_move(original_rename, s, d)))
+                stack.enter_context(
+                    patch.object(
+                        os,
+                        "replace",
+                        side_effect=lambda s, d: cross_device_move(
+                            original_replace, s, d
+                        ),
+                    )
+                )
+                stack.enter_context(
+                    patch.object(
+                        os,
+                        "rename",
+                        side_effect=lambda s, d: cross_device_move(
+                            original_rename, s, d
+                        ),
+                    )
+                )
             installer.main()
 
         data = b"re-release data" if installer is singleplayer else b"original data"
         self.assertEqual((expected / "id1/pak0.pak").read_bytes(), data)
         self.assertEqual((expected / "id1/save.sav").read_bytes(), b"saved game")
         self.assertEqual((expected / binary).read_bytes(), b"engine")
-        self.assertEqual((expected / "launcher.py").read_bytes(),
-                         (self.assets / "scripts" / name / "launcher.py").read_bytes())
-        self.assertEqual((expected / (name + ".svg")).read_bytes(),
-                         (self.assets / "icons" / (name + ".svg")).read_bytes())
+        self.assertEqual(
+            (expected / "launcher.py").read_bytes(),
+            (self.assets / "scripts" / name / "launcher.py").read_bytes(),
+        )
+        self.assertEqual(
+            (expected / (name + ".svg")).read_bytes(),
+            (self.assets / "icons" / (name + ".svg")).read_bytes(),
+        )
         self.assertFalse(self.download.exists())
         self.assertFalse(self.steam.exists())
         if installer is multiplayer:
@@ -129,18 +183,29 @@ class InstallationPathTests(unittest.TestCase):
             self.assertEqual(len(list((expected / "qw").glob("*.pk3"))), 5)
             self.assertFalse((expected / "ezquake/configs").exists())
         desktop = self.home / ".local/share/applications" / (name + ".desktop")
-        entries = dict(line.split("=", 1) for line in desktop.read_text(encoding="utf-8").splitlines()
-                       if "=" in line and not line.startswith("#"))
+        entries = dict(
+            line.split("=", 1)
+            for line in desktop.read_text(encoding="utf-8").splitlines()
+            if "=" in line and not line.startswith("#")
+        )
         self.assertEqual(entries["Path"], shortcuts.desktop_value(expected))
-        self.assertEqual(entries["Icon"], shortcuts.desktop_value(expected / (name + ".svg")))
-        self.assertEqual(entries["Exec"], shortcuts.desktop_argument(Path(sys.executable).absolute())
-                         + " " + shortcuts.desktop_argument(expected / "launcher.py"))
+        self.assertEqual(
+            entries["Icon"], shortcuts.desktop_value(expected / (name + ".svg"))
+        )
+        self.assertEqual(
+            entries["Exec"],
+            shortcuts.desktop_argument(Path(sys.executable).absolute())
+            + " "
+            + shortcuts.desktop_argument(expected / "launcher.py"),
+        )
 
     def test_custom_paths_install_everything_and_update_shortcuts(self):
         for installer in (singleplayer, multiplayer):
             for kind in ("absolute", "relative", "home"):
                 with self.subTest(installer=installer.__name__, kind=kind):
-                    destination = self.home / f"{installer.__name__} {kind} é $game 100%"
+                    destination = (
+                        self.home / f"{installer.__name__} {kind} é $game 100%"
+                    )
                     if kind == "relative":
                         argument = os.path.relpath(destination)
                     elif kind == "home":
@@ -162,19 +227,32 @@ class InstallationPathTests(unittest.TestCase):
         for installer in (singleplayer, multiplayer):
             with self.subTest(installer=installer.__name__):
                 destination = self.home / installer.__name__
-                self.run_installer(installer, str(destination), destination, cross_device=True)
+                self.run_installer(
+                    installer, str(destination), destination, cross_device=True
+                )
 
     def test_invalid_destinations_fail_before_contacting_steam(self):
         file = self.home / "existing-file"
         file.write_bytes(b"keep")
         for installer in (singleplayer, multiplayer):
-            for destination in ("", str(file), str(self.download), str(self.download / "game"),
-                                str(self.steam / "game")):
-                with self.subTest(installer=installer.__name__, destination=destination), \
-                        patch.object(sys, "argv", [installer.__file__, "--install-dir", destination, "user"]), \
-                        patch.object(installer, "install_steamcmd") as steam, \
-                        contextlib.redirect_stderr(io.StringIO()), \
-                        self.assertRaises(SystemExit) as error:
+            for destination in (
+                "",
+                str(file),
+                str(self.download),
+                str(self.download / "game"),
+                str(self.steam / "game"),
+            ):
+                with (
+                    self.subTest(installer=installer.__name__, destination=destination),
+                    patch.object(
+                        sys,
+                        "argv",
+                        [installer.__file__, "--install-dir", destination, "user"],
+                    ),
+                    patch.object(installer, "install_steamcmd") as steam,
+                    contextlib.redirect_stderr(io.StringIO()),
+                    self.assertRaises(SystemExit) as error,
+                ):
                     installer.main()
                 self.assertEqual(error.exception.code, 2)
                 steam.assert_not_called()

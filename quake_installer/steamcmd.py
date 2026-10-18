@@ -89,7 +89,9 @@ def check_rosetta() -> None:
 
     result = subprocess.run(
         ["arch", "-x86_64", "/usr/bin/true"],
-        check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     if result.returncode != 0:
@@ -203,8 +205,7 @@ def login(steamcmd: Path, username: str) -> None:
     # Interactive, so steamcmd can ask for the password and Steam Guard code.
     # The credentials it caches let the download run without prompts.
     result = subprocess.run(
-        [str(steamcmd), "+login", username, "+quit"],
-        check=False, cwd=STEAMCMD_DIR
+        [str(steamcmd), "+login", username, "+quit"], check=False, cwd=STEAMCMD_DIR
     )
 
     if result.returncode != 0:

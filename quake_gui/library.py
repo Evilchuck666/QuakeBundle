@@ -56,9 +56,7 @@ def validate_player(name, sensitivity, team="", fakename=""):
         raise ValueError("Enter a player name.")
     for value in (name, team, fakename):
         if any(ord(char) < 32 or char in '\\"' for char in value):
-            raise ValueError(
-                "Names cannot contain quotes, backslashes or line breaks."
-            )
+            raise ValueError("Names cannot contain quotes, backslashes or line breaks.")
     if not math.isfinite(float(sensitivity)) or float(sensitivity) <= 0:
         raise ValueError("Mouse sensitivity must be a positive number.")
 
@@ -158,6 +156,7 @@ def create_shortcut(edition, root):
     icon = f"{edition.engine}.{extension}"
     shutil.copyfile(ASSETS / "icons" / icon, root / icon)
     if system == "Linux":
+
         def copy_template(_url, destination):
             shutil.copyfile(ASSETS / "links" / destination.name, destination)
 
@@ -166,6 +165,4 @@ def create_shortcut(edition, root):
         )
     if system == "Windows":
         return shortcuts.create_windows_shortcut(root, shortcut, command=command)
-    return shortcuts.create_macos_shortcut(
-        root, command[0], shortcut, command=command
-    )
+    return shortcuts.create_macos_shortcut(root, command[0], shortcut, command=command)

@@ -24,9 +24,7 @@ from urllib.request import urlopen
 from xml.parsers.expat import ExpatError
 
 CONFIG_FILES = ("autoexec.cfg", "game.cfg", "player.cfg")
-CONFIG_BASE_URL = (
-    "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/ezQuake/"
-)
+CONFIG_BASE_URL = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/cfg/ezQuake/"
 
 NEEDS_SETUP = 2
 
@@ -62,7 +60,7 @@ def prompt_player_name(prompt="Enter your player name", default="Player"):
     while True:
         name = get_input(prompt, default).strip()
 
-        if name and not any(char in name for char in '\"\r\n'):
+        if name and not any(char in name for char in '"\r\n'):
             return name
 
         print("Please enter a nonempty name without double quotes or line breaks.")
@@ -106,8 +104,11 @@ def inspect_configs(config_path):
     directory = config_path.parent
     directory_exists = path_exists_as(directory, stat.S_ISDIR)
 
-    missing = [name for name in CONFIG_FILES
-               if not path_exists_as(directory / name, stat.S_ISREG)]
+    missing = [
+        name
+        for name in CONFIG_FILES
+        if not path_exists_as(directory / name, stat.S_ISREG)
+    ]
 
     return directory_exists, missing
 
@@ -117,10 +118,15 @@ def prompt_reset(missing):
     print(f"Missing configuration files: {', '.join(missing)}")
 
     while True:
-        answer = get_input(
-            "Reset all three .cfg files? This overwrites their custom settings. "
-            "Choose no to download only missing files (y/n)", "n"
-        ).strip().lower()
+        answer = (
+            get_input(
+                "Reset all three .cfg files? This overwrites their custom settings. "
+                "Choose no to download only missing files (y/n)",
+                "n",
+            )
+            .strip()
+            .lower()
+        )
 
         if answer in ("y", "yes"):
             return True
@@ -171,7 +177,7 @@ def extract_inline_comment(line):
     for index, char in enumerate(line):
         if char == '"':
             quoted = not quoted
-        elif not quoted and line[index:index + 2] == "//":
+        elif not quoted and line[index : index + 2] == "//":
             return " " + line[index:].rstrip()
 
     return ""
@@ -180,7 +186,9 @@ def extract_inline_comment(line):
 def format_config_entry(key, value, comment=""):
     """Format a Quake string; its console parser cannot escape embedded quotes."""
     if any(char in str(value) for char in '"\r\n'):
-        raise ValueError(f"Invalid value for {key}: quotes and line breaks are not supported")
+        raise ValueError(
+            f"Invalid value for {key}: quotes and line breaks are not supported"
+        )
 
     return f'{key:<38}"{value}"{comment}\n'
 
@@ -200,7 +208,9 @@ def update_existing_entries(lines, updates):
         key = stripped.split(maxsplit=1)[0]
 
         if key in updates:
-            result.append(format_config_entry(key, updates[key], extract_inline_comment(line)))
+            result.append(
+                format_config_entry(key, updates[key], extract_inline_comment(line))
+            )
             found.add(key)
         else:
             result.append(line)
@@ -250,7 +260,9 @@ def save_config_lines(config_path, lines):
 
 def mark_setup_complete(config_path):
     """Write the marker used by the launcher to recognize a completed setup."""
-    get_setup_marker_path(config_path).write_text("Configured by launcher.py\n", encoding="utf-8")
+    get_setup_marker_path(config_path).write_text(
+        "Configured by launcher.py\n", encoding="utf-8"
+    )
 
 
 def parse_setup_args(argv):
@@ -262,11 +274,17 @@ def parse_setup_args(argv):
 
     modes = parser.add_mutually_exclusive_group()
 
-    modes.add_argument("--check", action="store_true",
-                       help="Check only: exit 0 if ready, 2 if setup is needed, 1 on failure.")
+    modes.add_argument(
+        "--check",
+        action="store_true",
+        help="Check only: exit 0 if ready, 2 if setup is needed, 1 on failure.",
+    )
 
-    modes.add_argument("--auto", action="store_true",
-                       help="Recover missing files and ask for player settings only if needed.")
+    modes.add_argument(
+        "--auto",
+        action="store_true",
+        help="Recover missing files and ask for player settings only if needed.",
+    )
 
     return parser.parse_args(argv)
 
@@ -331,8 +349,11 @@ def setup_main(argv=None):
         return 1
 
     except (EOFError, KeyboardInterrupt):
-        print("\nSetup cancelled; player settings were not saved. "
-              "Any configuration files already recovered remain in place.", file=sys.stderr)
+        print(
+            "\nSetup cancelled; player settings were not saved. "
+            "Any configuration files already recovered remain in place.",
+            file=sys.stderr,
+        )
 
         return 1
 
@@ -349,13 +370,16 @@ def prepare_shared_autoexec(root):
     # Preserve comments, quoting, line endings and custom autoexec commands.
     updated = re.sub(
         rb'(^[ \t]*(?i:exec)[ \t]+)("?)(configs/(?:game|player)\.cfg)\2(?=[ \t;\r\n]|$)',
-        rb'\1\2ezquake/\3\2', original, flags=re.MULTILINE,
+        rb"\1\2ezquake/\3\2",
+        original,
+        flags=re.MULTILINE,
     )
     if updated == original:
         return
 
-    with tempfile.NamedTemporaryFile(dir=autoexec.parent, prefix=".launcher-autoexec-",
-                                     delete=False) as temporary:
+    with tempfile.NamedTemporaryFile(
+        dir=autoexec.parent, prefix=".launcher-autoexec-", delete=False
+    ) as temporary:
         staged = Path(temporary.name)
         try:
             temporary.write(updated)
@@ -382,16 +406,20 @@ def write_macos_setup_script(command, script, result_path):
     # the launcher; never interpolate them into AppleScript source.
     staged_result = result_path.with_name("status.tmp")
     script.write_text(
-        shlex.join(command) + "\nstatus=$?\n"
-        + "printf '%s\\n' \"$status\" > " + shlex.quote(str(staged_result)) + "\n"
-        + shlex.join(["/bin/mv", str(staged_result), str(result_path)]) + "\n",
+        shlex.join(command)
+        + "\nstatus=$?\n"
+        + "printf '%s\\n' \"$status\" > "
+        + shlex.quote(str(staged_result))
+        + "\n"
+        + shlex.join(["/bin/mv", str(staged_result), str(result_path)])
+        + "\n",
         encoding="utf-8",
     )
 
 
 def applescript_quote():
     """Return an AppleScript that runs a shell command and waits for its completion."""
-    return '''on run argv
+    return """on run argv
     tell application "Terminal"
         activate
         set setupTab to do script (item 1 of argv)
@@ -411,19 +439,29 @@ def applescript_quote():
         end if
         delay 0.2
     end repeat
-end run'''
+end run"""
 
 
 def run_macos_setup_terminal(script, result_path):
     """Run the setup script in Terminal and wait for completion."""
     result = subprocess.run(
-        ["/usr/bin/osascript", "-e", applescript_quote(),
-         shlex.join(["/bin/sh", str(script)]), str(result_path)],
-        check=False, capture_output=True, text=True,
+        [
+            "/usr/bin/osascript",
+            "-e",
+            applescript_quote(),
+            shlex.join(["/bin/sh", str(script)]),
+            str(result_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
     )
     if result.returncode:
-        raise OSError("Could not complete setup in Terminal: " + result.stderr.strip()
-                      + " Run launcher.py --setup-only from a terminal.")
+        raise OSError(
+            "Could not complete setup in Terminal: "
+            + result.stderr.strip()
+            + " Run launcher.py --setup-only from a terminal."
+        )
 
 
 def read_macos_setup_status(result_path):
@@ -434,7 +472,9 @@ def read_macos_setup_status(result_path):
             raise ValueError("invalid exit status")
         return status
     except (OSError, ValueError) as error:
-        raise OSError("Setup did not return a valid exit status; game not started.") from error
+        raise OSError(
+            "Setup did not return a valid exit status; game not started."
+        ) from error
 
 
 def run_macos_setup(command):
@@ -453,33 +493,45 @@ def run_setup_wizard(automatic=False):
     arguments = ["--auto"] if automatic else []
     print("Running Initial Setup Wizard...", flush=True)
 
-    if all(stream is not None and stream.isatty() for stream in (sys.stdin, sys.stdout)):
+    if all(
+        stream is not None and stream.isatty() for stream in (sys.stdin, sys.stdout)
+    ):
         return setup_main(arguments)
 
-    command = [console_python(), str(Path(__file__).resolve()), "--setup-only", *arguments]
+    command = [
+        console_python(),
+        str(Path(__file__).resolve()),
+        "--setup-only",
+        *arguments,
+    ]
     system = platform.system()
     if system == "Windows":
-        return subprocess.run(command, check=False,
-                              creationflags=subprocess.CREATE_NEW_CONSOLE).returncode
+        return subprocess.run(
+            command, check=False, creationflags=subprocess.CREATE_NEW_CONSOLE
+        ).returncode
     if system == "Darwin":
         return run_macos_setup(command)
     if system == "Linux":
         xterm = shutil.which("xterm")
         if xterm and os.environ.get("DISPLAY"):
-            return subprocess.run([xterm, "-T", "ezQuake Setup Wizard", "-e", *command],
-                                  check=False).returncode
+            return subprocess.run(
+                [xterm, "-T", "ezQuake Setup Wizard", "-e", *command], check=False
+            ).returncode
 
     # Retain redirected-input support and headless Linux operation.
     if sys.stdin is None or sys.stdout is None:
-        raise OSError("Setup requires a console. Run launcher.py --setup-only in a terminal.")
+        raise OSError(
+            "Setup requires a console. Run launcher.py --setup-only in a terminal."
+        )
     return setup_main(arguments)
 
 
 def print_launcher_help():
     """Show launcher options, setup modes and examples."""
     program = Path(__file__).name
-    print(f"Usage: {program} [--help] [--wizard] [--mod NAME] [--engine PATH] "
-          f"""[ezQuake arguments...]
+    print(
+        f"Usage: {program} [--help] [--wizard] [--mod NAME] [--engine PATH] "
+        f"""[ezQuake arguments...]
 
 Options:
   --engine PATH  Select an executable or macOS .app (relative to the current directory).
@@ -502,7 +554,8 @@ Supports Linux AppImage, Windows .exe and macOS .app installations.
 Install this launcher beside the engine and game data.
 
 All other arguments are passed to ezQuake.
-Use -- to pass all remaining arguments directly to ezQuake.""")
+Use -- to pass all remaining arguments directly to ezQuake."""
+    )
 
 
 def parse_launcher_args(argv):
@@ -524,7 +577,9 @@ def parse_launcher_args(argv):
         elif argument == "--mod":
             mod = next(arguments, "")
             if not mod or mod.startswith(("-", "+")):
-                raise ValueError("--mod requires a mod folder name (for example: --mod fortress).")
+                raise ValueError(
+                    "--mod requires a mod folder name (for example: --mod fortress)."
+                )
             options.game_args.extend(["-game", mod])
         elif argument == "--":
             options.game_args.extend(arguments)
@@ -562,20 +617,27 @@ def matches_engine_platform(path, system):
         return name == "ezquake-x86_64.appimage" and path.is_file()
     if system == "Windows":
         return name == "ezquake.exe" and path.is_file()
-    return (name == "ezquake.app" or name.startswith("ezquake-")
-            and name.endswith(".app")) and path.is_dir()
+    return (
+        name == "ezquake.app" or name.startswith("ezquake-") and name.endswith(".app")
+    ) and path.is_dir()
 
 
 def find_installed_engine(root, system):
     """Find exactly one matching engine in the installation directory."""
-    candidates = sorted(path for path in root.iterdir() if matches_engine_platform(path, system))
+    candidates = sorted(
+        path for path in root.iterdir() if matches_engine_platform(path, system)
+    )
     if not candidates:
-        raise OSError(f"No ezQuake engine found for {system} in {root}. "
-                      "Use --engine PATH to select an installed executable or macOS .app.")
+        raise OSError(
+            f"No ezQuake engine found for {system} in {root}. "
+            "Use --engine PATH to select an installed executable or macOS .app."
+        )
     if len(candidates) > 1:
-        raise OSError("Multiple ezQuake engines found: "
-                      + ", ".join(path.name for path in candidates)
-                      + ". Select one with --engine PATH.")
+        raise OSError(
+            "Multiple ezQuake engines found: "
+            + ", ".join(path.name for path in candidates)
+            + ". Select one with --engine PATH."
+        )
     return candidates[0].resolve()
 
 
@@ -585,8 +647,12 @@ def resolve_macos_bundle(engine):
         with (engine / "Contents" / "Info.plist").open("rb") as metadata:
             info = plistlib.load(metadata)
         name = info.get("CFBundleExecutable") if isinstance(info, dict) else None
-        if (not isinstance(name, str) or not name or name in (".", "..")
-                or any(char in name for char in ("/", "\\", "\x00"))):
+        if (
+            not isinstance(name, str)
+            or not name
+            or name in (".", "..")
+            or any(char in name for char in ("/", "\\", "\x00"))
+        ):
             raise ValueError("invalid CFBundleExecutable")
     except (OSError, ValueError, plistlib.InvalidFileException, ExpatError) as error:
         raise OSError(f"Invalid application bundle {engine}: {error}") from error

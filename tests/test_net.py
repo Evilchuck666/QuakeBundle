@@ -49,7 +49,9 @@ class OpenUrlTests(unittest.TestCase):
 
     def test_user_agent_is_sent(self):
         """Send the configured user agent when opening a URL."""
-        with patch.object(net.urllib.request, "urlopen", return_value=sentinel.response) as open_:
+        with patch.object(
+            net.urllib.request, "urlopen", return_value=sentinel.response
+        ) as open_:
             self.assertIs(net.open_url(self.url), sentinel.response)
         request = open_.call_args.args[0]
         self.assertEqual(request.full_url, self.url)
@@ -122,24 +124,31 @@ class CurlTests(unittest.TestCase):
             ):
                 with net.curl_get(self.url) as response:
                     self.assertEqual(response.read(), payload)
-                    self.assertEqual(response.headers["Content-Length"], str(len(payload)))
+                    self.assertEqual(
+                        response.headers["Content-Length"], str(len(payload))
+                    )
                     self.assertEqual(response.geturl(), self.url)
                     self.assertEqual(response.getcode(), 200)
                 self.assertTrue(temporary.closed)
             run.assert_called_once_with(
                 ["curl", "-fsSL", "-A", net.USER_AGENT, self.url],
-                check=False, stdout=temporary, stderr=subprocess.PIPE,
+                check=False,
+                stdout=temporary,
+                stderr=subprocess.PIPE,
             )
 
     def test_failed_curl_closes_temporary_file(self):
         """Close the temporary file even when curl is unavailable or fails."""
         cases = (
             (Mock(side_effect=FileNotFoundError()), "curl is not available"),
-            (Mock(
-                return_value=subprocess.CompletedProcess(
-                    [], 22, stderr=b"not found\n"
-                )
-            ), "not found"),
+            (
+                Mock(
+                    return_value=subprocess.CompletedProcess(
+                        [], 22, stderr=b"not found\n"
+                    )
+                ),
+                "not found",
+            ),
         )
         for run, message in cases:
             with self.subTest(message=message), tempfile.TemporaryFile() as temporary:

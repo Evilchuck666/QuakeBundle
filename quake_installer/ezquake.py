@@ -67,7 +67,9 @@ def install_ezquake(install_dir: Path | None = None) -> None:
     install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
     found = ezquake_release()
     if found is None:
-        print(f"    No ezQuake build for {platform.system()} {platform.machine()}; skipping")
+        print(
+            f"    No ezQuake build for {platform.system()} {platform.machine()}; skipping"
+        )
         return
 
     version, asset = found
@@ -85,7 +87,9 @@ def install_ezquake(install_dir: Path | None = None) -> None:
 
         if system == "Darwin":
             installed = install_ezquake_mac(download, install_dir)
-            instructions = "    Run it by opening ezQuake.app; it uses the folder it is in."
+            instructions = (
+                "    Run it by opening ezQuake.app; it uses the folder it is in."
+            )
         elif system == "Windows":
             with zipfile.ZipFile(download) as archive:
                 for info in archive.infolist():

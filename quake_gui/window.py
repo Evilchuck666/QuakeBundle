@@ -160,9 +160,7 @@ class MainWindow(QMainWindow):
         words = QVBoxLayout()
         words.addWidget(label("THE CLASSIC. YOUR WAY.", "eyebrow"))
         words.addWidget(label("Back to the beginning.", "heading"))
-        words.addWidget(
-            label("Two ways to play. One gateway.", "muted", True)
-        )
+        words.addWidget(label("Two ways to play. One gateway.", "muted", True))
         hero.addLayout(words, 1)
         hero.addWidget(Gate())
         left.addLayout(hero)
@@ -440,9 +438,7 @@ class MainWindow(QMainWindow):
             button.setEnabled(not busy)
         self.install_button.setEnabled(not busy and path_error is None)
         self.install_button.setText(
-            "Reinstall / update"
-            if ready
-            else f"Install {self.edition.title.lower()}"
+            "Reinstall / update" if ready else f"Install {self.edition.title.lower()}"
         )
         primary, secondary = (
             (self.play_button, self.install_button)
@@ -506,9 +502,7 @@ class MainWindow(QMainWindow):
                 or username.startswith(("+", "-"))
                 or any(char.isspace() or ord(char) < 32 for char in username)
             ):
-                raise ValueError(
-                    "Enter your Steam login name without spaces."
-                )
+                raise ValueError("Enter your Steam login name without spaces.")
             other = EDITIONS[
                 "multiplayer" if self.edition.key == "singleplayer" else "singleplayer"
             ]
@@ -680,9 +674,7 @@ class MainWindow(QMainWindow):
             self.game.deleteLater()
             self.game = None
         self.activity.setText(
-            "Ready for another game"
-            if code == 0
-            else "The engine exited with an error"
+            "Ready for another game" if code == 0 else "The engine exited with an error"
         )
         if code != 0:
             self.logs.appendPlainText(

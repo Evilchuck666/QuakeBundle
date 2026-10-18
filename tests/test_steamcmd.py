@@ -39,7 +39,9 @@ class SteamcmdInstallationTests(unittest.TestCase):
         """Create a temporary workspace for each test."""
         stack = ExitStack()
         self.addCleanup(stack.close)
-        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake steamcmd ")))
+        self.root = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="quake steamcmd "))
+        )
 
     def test_installs_platform_archives_and_reuses_existing_executable(self):
         """Install a platform archive once and reuse the extracted executable."""
@@ -52,17 +54,23 @@ class SteamcmdInstallationTests(unittest.TestCase):
                 def download(_url, destination, archive=archive):
                     destination.write_bytes(archive)
 
-                with patch.object(steamcmd, "STEAMCMD_DIR", directory), \
-                     patch.object(gamedata, "STEAMCMD_DIR", directory), \
-                     patch.object(gamedata, "DOWNLOAD_DIR", directory.parent / "download"), \
-                     patch.object(steamcmd.platform, "system", return_value=system), \
-                     patch.object(steamcmd, "fetch", side_effect=download) as fetch, \
-                     redirect_stdout(io.StringIO()):
+                with (
+                    patch.object(steamcmd, "STEAMCMD_DIR", directory),
+                    patch.object(gamedata, "STEAMCMD_DIR", directory),
+                    patch.object(
+                        gamedata, "DOWNLOAD_DIR", directory.parent / "download"
+                    ),
+                    patch.object(steamcmd.platform, "system", return_value=system),
+                    patch.object(steamcmd, "fetch", side_effect=download) as fetch,
+                    redirect_stdout(io.StringIO()),
+                ):
                     executable = steamcmd.install_steamcmd()
                     self.assertEqual(executable, directory / filename)
                     self.assertEqual(executable.read_bytes(), payload)
                     self.assertEqual(fetch.call_count, 1)
-                    self.assertEqual(fetch.call_args.args[0], steamcmd.STEAMCMD_URLS[system])
+                    self.assertEqual(
+                        fetch.call_args.args[0], steamcmd.STEAMCMD_URLS[system]
+                    )
                     if os.name == "posix" and system != "Windows":
                         self.assertEqual(stat.S_IMODE(executable.stat().st_mode), 0o755)
 
@@ -71,20 +79,28 @@ class SteamcmdInstallationTests(unittest.TestCase):
                     session.write_bytes(b"synthetic Steam session")
                     for _ in range(2):
                         gamedata.DOWNLOAD_DIR.mkdir()
-                        (gamedata.DOWNLOAD_DIR / "temporary.pak").write_bytes(b"download")
+                        (gamedata.DOWNLOAD_DIR / "temporary.pak").write_bytes(
+                            b"download"
+                        )
                         gamedata.clean_up(keep_steamcmd=True)
                         self.assertFalse(gamedata.DOWNLOAD_DIR.exists())
                         self.assertEqual(executable.read_bytes(), payload)
-                        self.assertEqual(session.read_bytes(), b"synthetic Steam session")
+                        self.assertEqual(
+                            session.read_bytes(), b"synthetic Steam session"
+                        )
                         self.assertEqual(steamcmd.install_steamcmd(), executable)
                     self.assertEqual(fetch.call_count, 1)
 
     def test_rejects_unsupported_platform_without_downloading(self):
         """Reject unsupported OS targets before attempting a download."""
-        with patch.object(steamcmd, "STEAMCMD_DIR", self.root / "steamcmd"), \
-             patch.object(steamcmd.platform, "system", return_value="Plan9"), \
-             patch.object(steamcmd, "fetch") as fetch:
-            with self.assertRaisesRegex(SystemExit, "Unsupported operating system: Plan9"):
+        with (
+            patch.object(steamcmd, "STEAMCMD_DIR", self.root / "steamcmd"),
+            patch.object(steamcmd.platform, "system", return_value="Plan9"),
+            patch.object(steamcmd, "fetch") as fetch,
+        ):
+            with self.assertRaisesRegex(
+                SystemExit, "Unsupported operating system: Plan9"
+            ):
                 steamcmd.install_steamcmd()
             fetch.assert_not_called()
 
@@ -99,7 +115,9 @@ class SteamcmdInstallationTests(unittest.TestCase):
                     patch.object(
                         steamcmd,
                         "fetch",
-                        side_effect=lambda _url, path, archive=archive: path.write_bytes(archive),
+                        side_effect=lambda _url, path, archive=archive: (
+                            path.write_bytes(archive)
+                        ),
                     ),
                     redirect_stdout(io.StringIO()),
                     self.assertRaisesRegex(
@@ -121,13 +139,15 @@ class RosettaTests(unittest.TestCase):
             patch.object(
                 steamcmd.subprocess,
                 "run",
-                return_value=subprocess.CompletedProcess([], 0)
-            ) as run
+                return_value=subprocess.CompletedProcess([], 0),
+            ) as run,
         ):
             steamcmd.check_rosetta()
             run.assert_called_once_with(
                 ["arch", "-x86_64", "/usr/bin/true"],
-                check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
     def test_missing_rosetta_reports_install_command(self):
@@ -146,11 +166,17 @@ class RosettaTests(unittest.TestCase):
 
     def test_other_platforms_do_not_probe_rosetta(self):
         """Skip Rosetta checks on non-Apple Silicon systems."""
-        for system, machine in (("Darwin", "x86_64"), ("Linux", "aarch64"), ("Windows", "AMD64")):
-            with self.subTest(system=system, machine=machine), \
-                 patch.object(steamcmd.platform, "system", return_value=system), \
-                 patch.object(steamcmd.platform, "machine", return_value=machine), \
-                 patch.object(steamcmd.subprocess, "run") as run:
+        for system, machine in (
+            ("Darwin", "x86_64"),
+            ("Linux", "aarch64"),
+            ("Windows", "AMD64"),
+        ):
+            with (
+                self.subTest(system=system, machine=machine),
+                patch.object(steamcmd.platform, "system", return_value=system),
+                patch.object(steamcmd.platform, "machine", return_value=machine),
+                patch.object(steamcmd.subprocess, "run") as run,
+            ):
                 steamcmd.check_rosetta()
                 run.assert_not_called()
 
@@ -162,9 +188,9 @@ class CapturedProcessTests(unittest.TestCase):
         """Create a temporary directory and patch the SteamCMD install path."""
         stack = ExitStack()
         self.addCleanup(stack.close)
-        self.directory = Path(stack.enter_context(
-            tempfile.TemporaryDirectory(prefix="quake capture ")
-        ))
+        self.directory = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="quake capture "))
+        )
         stack.enter_context(patch.object(steamcmd, "STEAMCMD_DIR", self.directory))
 
     def test_native_capture_combines_streams_strips_ansi_and_keeps_tail(self):
@@ -190,7 +216,7 @@ class CapturedProcessTests(unittest.TestCase):
         expected.append("final unterminated line")
         self.assertEqual(returncode, 7)
         self.assertEqual(lines, expected)
-        self.assertEqual(tail, expected[-steamcmd.TAIL_LINES:])
+        self.assertEqual(tail, expected[-steamcmd.TAIL_LINES :])
 
     def test_successful_process_with_no_output(self):
         """Return an empty tail when a process exits cleanly without emitting output."""

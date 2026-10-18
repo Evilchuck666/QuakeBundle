@@ -21,7 +21,9 @@ from urllib.error import HTTPError, URLError
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPTS = ROOT / "assets" / "scripts" / "vkQuake"
 CONFIGS = ROOT / "assets" / "cfg" / "vkQuake"
-SPEC = importlib.util.spec_from_file_location("vkquake_launcher", SCRIPTS / "launcher.py")
+SPEC = importlib.util.spec_from_file_location(
+    "vkquake_launcher", SCRIPTS / "launcher.py"
+)
 launcher = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(launcher)
 
@@ -33,22 +35,30 @@ class WizardTestCase(unittest.TestCase):
         """Create an isolated player config and capture wizard output."""
         self.stack = contextlib.ExitStack()
         self.addCleanup(self.stack.close)
-        self.root = Path(self.stack.enter_context(
-            tempfile.TemporaryDirectory(prefix="vkquake setup ")
-        )).resolve()
+        self.root = Path(
+            self.stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="vkquake setup ")
+            )
+        ).resolve()
         self.config = self.root / "id1" / "configs" / "player.cfg"
         shutil.copytree(CONFIGS, self.config.parent)
         self.stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        self.stderr = self.stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+        self.stderr = self.stack.enter_context(
+            contextlib.redirect_stderr(io.StringIO())
+        )
         self.get_player_cfg_path = launcher.get_player_cfg_path
         self.stack.enter_context(
             patch.object(launcher, "get_player_cfg_path", return_value=self.config)
         )
-        self.download = self.stack.enter_context(patch.object(
-            launcher, "urlopen", side_effect=lambda url, timeout: io.BytesIO(
-                (CONFIGS / url.rsplit("/", 1)[-1]).read_bytes()
+        self.download = self.stack.enter_context(
+            patch.object(
+                launcher,
+                "urlopen",
+                side_effect=lambda url, timeout: io.BytesIO(
+                    (CONFIGS / url.rsplit("/", 1)[-1]).read_bytes()
+                ),
             )
-        ))
+        )
 
     def run_wizard(self, answers, *args):
         """Run the wizard with scripted answers to its prompts."""
@@ -57,8 +67,11 @@ class WizardTestCase(unittest.TestCase):
 
     def settings(self):
         """Read active player settings from the temporary config."""
-        return dict(line.split(maxsplit=1) for line in self.config.read_text().splitlines()
-                    if line.strip() and not line.startswith("//"))
+        return dict(
+            line.split(maxsplit=1)
+            for line in self.config.read_text().splitlines()
+            if line.strip() and not line.startswith("//")
+        )
 
 
 class WizardSettingsTests(WizardTestCase):
@@ -67,8 +80,12 @@ class WizardSettingsTests(WizardTestCase):
     def test_player_settings_update_template_and_record_success(self):
         """Save entered settings and mark setup complete."""
         expected = self.settings()
-        expected.update(name='"Ranger"', _cl_name='"Ranger"',
-                        hostname='"Ranger SV"', sensitivity='"2.5"')
+        expected.update(
+            name='"Ranger"',
+            _cl_name='"Ranger"',
+            hostname='"Ranger SV"',
+            sensitivity='"2.5"',
+        )
         self.assertEqual(self.run_wizard(["Ranger", "2.5"]), 0)
         self.assertEqual(self.settings(), expected)
         self.assertTrue(launcher.get_setup_marker_path(self.config).is_file())
@@ -76,8 +93,12 @@ class WizardSettingsTests(WizardTestCase):
     def test_default_settings_do_not_add_video_overrides(self):
         """Apply default player settings without adding video overrides."""
         expected = self.settings()
-        expected.update(name='"Player"', _cl_name='"Player"',
-                        hostname='"Player SV"', sensitivity='"3.0"')
+        expected.update(
+            name='"Player"',
+            _cl_name='"Player"',
+            hostname='"Player SV"',
+            sensitivity='"3.0"',
+        )
         self.assertEqual(self.run_wizard(["", ""]), 0)
         self.assertEqual(self.settings(), expected)
 
@@ -89,11 +110,11 @@ class WizardSettingsTests(WizardTestCase):
     def test_comments_custom_settings_and_url_names_survive_rerun(self):
         """Preserve comments, custom settings, and names containing slashes."""
         self.config.write_text('name "old//name" // keep this\nfov "105"')
-        self.assertEqual(self.run_wizard(['bad"name', 'new//name', "3"]), 0)
+        self.assertEqual(self.run_wizard(['bad"name', "new//name", "3"]), 0)
         text = self.config.read_text()
         self.assertIn('"new//name" // keep this\n', text)
         self.assertIn('fov "105"\n', text)
-        self.assertEqual(self.run_wizard(['new//name', "3"]), 0)
+        self.assertEqual(self.run_wizard(["new//name", "3"]), 0)
         self.assertEqual(self.config.read_text(), text)
 
     def test_cancel_does_not_modify_config_or_mark_setup_complete(self):
@@ -127,8 +148,12 @@ class WizardRecoveryTests(WizardTestCase):
         shutil.rmtree(self.config.parent)
 
         def answer(prompt):
-            self.assertTrue(all((self.config.parent / name).is_file()
-                                for name in launcher.CONFIG_FILES))
+            self.assertTrue(
+                all(
+                    (self.config.parent / name).is_file()
+                    for name in launcher.CONFIG_FILES
+                )
+            )
             self.assertNotIn("Reset", prompt)
             return ""
 
@@ -149,8 +174,11 @@ class WizardRecoveryTests(WizardTestCase):
         for names in [("autoexec.cfg",), ("game.cfg",), ("autoexec.cfg", "game.cfg")]:
             for answer in ("", "n"):
                 with self.subTest(names=names, answer=answer):
-                    untouched = {name: (self.config.parent / name).read_bytes()
-                                 for name in launcher.CONFIG_FILES if name not in names}
+                    untouched = {
+                        name: (self.config.parent / name).read_bytes()
+                        for name in launcher.CONFIG_FILES
+                        if name not in names
+                    }
                     for name in names:
                         (self.config.parent / name).unlink()
                     self.download.reset_mock()
@@ -158,7 +186,9 @@ class WizardRecoveryTests(WizardTestCase):
                     self.assertEqual(self.download.call_count, len(names))
                     self.assertEqual(self.config.read_bytes(), before)
                     for name, content in untouched.items():
-                        self.assertEqual((self.config.parent / name).read_bytes(), content)
+                        self.assertEqual(
+                            (self.config.parent / name).read_bytes(), content
+                        )
 
     def test_missing_player_or_all_files_requires_player_setup(self):
         """A stale marker never skips settings for a recovered player.cfg."""
@@ -185,8 +215,7 @@ class WizardRecoveryTests(WizardTestCase):
         self.assertEqual(self.download.call_count, 3)
         for name in ("autoexec.cfg", "game.cfg"):
             self.assertEqual(
-                (self.config.parent / name).read_bytes(),
-                (CONFIGS / name).read_bytes()
+                (self.config.parent / name).read_bytes(), (CONFIGS / name).read_bytes()
             )
 
         self.assertNotIn('fov "105"', self.config.read_text())
@@ -229,8 +258,10 @@ class WizardRecoveryTests(WizardTestCase):
 
     def test_inspection_permission_failure_precedes_prompts(self):
         """Report inaccessible paths before any recovery question."""
-        with patch.object(Path, "stat", side_effect=PermissionError("denied")), \
-                patch("builtins.input") as prompt:
+        with (
+            patch.object(Path, "stat", side_effect=PermissionError("denied")),
+            patch("builtins.input") as prompt,
+        ):
             self.assertEqual(launcher.setup_main([]), 1)
         prompt.assert_not_called()
         self.download.assert_not_called()
@@ -240,15 +271,26 @@ class WizardRecoveryTests(WizardTestCase):
         launcher.mark_setup_complete(self.config)
         (self.config.parent / "game.cfg").unlink()
         before = {path.name: path.read_bytes() for path in self.config.parent.iterdir()}
-        failures = [URLError("offline"), TimeoutError("timeout"), IncompleteRead(b"partial", 10),
-                    HTTPError(launcher.CONFIG_BASE_URL, 404, "Not found", {}, None),
-                    b" \n", b"\xff"]
+        failures = [
+            URLError("offline"),
+            TimeoutError("timeout"),
+            IncompleteRead(b"partial", 10),
+            HTTPError(launcher.CONFIG_BASE_URL, 404, "Not found", {}, None),
+            b" \n",
+            b"\xff",
+        ]
         for failure in failures:
             with self.subTest(failure=failure):
                 second = io.BytesIO(failure) if isinstance(failure, bytes) else failure
-                self.download.side_effect = [io.BytesIO(b"valid first download\n"), second]
+                self.download.side_effect = [
+                    io.BytesIO(b"valid first download\n"),
+                    second,
+                ]
                 self.assertEqual(self.run_wizard(["y"], "--auto"), 1)
-                after = {path.name: path.read_bytes() for path in self.config.parent.iterdir()}
+                after = {
+                    path.name: path.read_bytes()
+                    for path in self.config.parent.iterdir()
+                }
                 self.assertEqual(after, before)
 
     def test_failed_replacement_cleans_downloads_and_invalidates_marker(self):
@@ -275,7 +317,9 @@ class WizardRecoveryTests(WizardTestCase):
         launcher.mark_setup_complete(self.config)
         self.config.unlink()
         self.assertEqual(self.run_wizard(["n", EOFError()], "--auto"), 1)
-        self.assertEqual(self.config.read_bytes(), (CONFIGS / "player.cfg").read_bytes())
+        self.assertEqual(
+            self.config.read_bytes(), (CONFIGS / "player.cfg").read_bytes()
+        )
         self.assertFalse(launcher.get_setup_marker_path(self.config).exists())
         self.assertIn("already recovered remain", self.stderr.getvalue())
         self.assertEqual(self.run_wizard(["Ranger", "3"], "--auto"), 0)
@@ -291,24 +335,32 @@ class LauncherTests(unittest.TestCase):
         """Install a single Python launcher with offline downloads and a fake engine."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        self.root = Path(stack.enter_context(
-            tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
-        )).resolve()
+        self.root = Path(
+            stack.enter_context(
+                tempfile.TemporaryDirectory(prefix="vkquake launch ' $ ")
+            )
+        ).resolve()
         self.configs = self.root / "id1" / "configs"
         shutil.copytree(CONFIGS, self.configs)
         self.marker = self.configs / ".wizard-complete"
         self.bin = self.root / "bin"
         self.bin.mkdir()
         (self.bin / "python3").symlink_to(sys.executable)
-        self.env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
-                        DISPLAY="", PYTHONDONTWRITEBYTECODE="1")
+        self.env = dict(
+            os.environ,
+            PATH=str(self.bin) + os.pathsep + os.environ["PATH"],
+            DISPLAY="",
+            PYTHONDONTWRITEBYTECODE="1",
+        )
         shutil.copytree(CONFIGS, self.root / "templates")
         self.write_launcher(0)
         engine = self.root / "vkQuake.AppImage"
-        engine.write_text('#!/usr/bin/env python3\nimport json, sys\n'
-                          'from pathlib import Path\n'
-                          'Path("engine.json").write_text(json.dumps(sys.argv[1:]))\n'
-                          'with Path("engine-runs").open("a") as log: log.write("run\\n")\n')
+        engine.write_text(
+            "#!/usr/bin/env python3\nimport json, sys\n"
+            "from pathlib import Path\n"
+            'Path("engine.json").write_text(json.dumps(sys.argv[1:]))\n'
+            'with Path("engine-runs").open("a") as log: log.write("run\\n")\n'
+        )
         engine.chmod(0o755)
 
     def write_launcher(self, status):
@@ -316,16 +368,16 @@ class LauncherTests(unittest.TestCase):
         source = (SCRIPTS / "launcher.py").read_text()
         source, entrypoint = source.rsplit('\n\nif __name__ == "__main__":', 1)
         instrumentation = (
-            '\n\nimport io\n'
-            'root = Path(__file__).resolve().parent\n'
-            'urlopen = lambda url, timeout: '
+            "\n\nimport io\n"
+            "root = Path(__file__).resolve().parent\n"
+            "urlopen = lambda url, timeout: "
             'io.BytesIO((root / "templates" / url.rsplit("/", 1)[-1]).read_bytes())\n'
-            'original_setup = setup_main\n'
-            'def setup_main(argv=None):\n'
+            "original_setup = setup_main\n"
+            "def setup_main(argv=None):\n"
             '    if "--check" not in (argv or []):\n'
             '        with (root / "wizard-runs").open("a") as log: log.write("run\\n")\n'
-            + (f'        return {status}\n' if status else '')
-            + '    return original_setup(argv)\n'
+            + (f"        return {status}\n" if status else "")
+            + "    return original_setup(argv)\n"
         )
         (self.root / "launcher.py").write_text(
             source + instrumentation + '\n\nif __name__ == "__main__":' + entrypoint
@@ -333,9 +385,16 @@ class LauncherTests(unittest.TestCase):
 
     def launch(self, *args, answers="\n\n"):
         """Run the launcher from another directory and capture its output."""
-        return subprocess.run([sys.executable, str(self.root / "launcher.py"), *args],
-                              cwd=self.bin, env=self.env, input=answers, text=True,
-                              capture_output=True, timeout=15, check=False)
+        return subprocess.run(
+            [sys.executable, str(self.root / "launcher.py"), *args],
+            cwd=self.bin,
+            env=self.env,
+            input=answers,
+            text=True,
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
 
     def test_first_run_repeat_forced_setup_and_argument_forwarding(self):
         """Run setup when needed or forced and forward engine arguments intact."""
@@ -344,14 +403,20 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             if args:
                 self.assertIn("Configuration saved successfully", result.stdout)
-        self.assertEqual((self.root / "wizard-runs").read_text().splitlines(), ["run", "run"])
-        self.assertEqual(json.loads((self.root / "engine.json").read_text()), [
-            "-basedir",
-            str(self.root),
-            "-userdir",
-            str(self.root),
-            "+exec", self.autoexec_path
-        ])
+        self.assertEqual(
+            (self.root / "wizard-runs").read_text().splitlines(), ["run", "run"]
+        )
+        self.assertEqual(
+            json.loads((self.root / "engine.json").read_text()),
+            [
+                "-basedir",
+                str(self.root),
+                "-userdir",
+                str(self.root),
+                "+exec",
+                self.autoexec_path,
+            ],
+        )
         self.assertEqual(self.launch("-game", "a mod").returncode, 0)
         self.assertEqual(
             json.loads((self.root / "engine.json").read_text())[-2:], ["-game", "a mod"]
@@ -367,24 +432,33 @@ class LauncherTests(unittest.TestCase):
         """Run only setup in xterm, preserving paths, arguments and failure status."""
         xterm = self.bin / "xterm"
         xterm.write_text(
-            '#!/usr/bin/env python3\nimport json, os, sys\n'
-            'from pathlib import Path\n'
+            "#!/usr/bin/env python3\nimport json, os, sys\n"
+            "from pathlib import Path\n"
             '(Path(__file__).resolve().parent.parent / "xterm.json").write_text('
-            'json.dumps(sys.argv[1:]))\n'
-            'os.execv(sys.argv[4], sys.argv[4:])\n'
+            "json.dumps(sys.argv[1:]))\n"
+            "os.execv(sys.argv[4], sys.argv[4:])\n"
         )
         xterm.chmod(0o755)
         self.env["DISPLAY"] = ":test"
         result = self.launch("--mod", "a mod", "+map", "start")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(self.marker.exists())
-        command = ["-T", "vkQuake Setup Wizard", "-e", sys.executable,
-                   str(self.root / "launcher.py"), "--setup-only"]
-        self.assertEqual(json.loads((self.root / "xterm.json").read_text()),
-                         [*command, "--auto"])
+        command = [
+            "-T",
+            "vkQuake Setup Wizard",
+            "-e",
+            sys.executable,
+            str(self.root / "launcher.py"),
+            "--setup-only",
+        ]
+        self.assertEqual(
+            json.loads((self.root / "xterm.json").read_text()), [*command, "--auto"]
+        )
         self.assertEqual((self.root / "engine-runs").read_text().splitlines(), ["run"])
-        self.assertEqual(json.loads((self.root / "engine.json").read_text())[-4:],
-                         ["-game", "a mod", "+map", "start"])
+        self.assertEqual(
+            json.loads((self.root / "engine.json").read_text())[-4:],
+            ["-game", "a mod", "+map", "start"],
+        )
 
         result = self.launch("--wizard", answers="Knight\n4\n")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -393,7 +467,9 @@ class LauncherTests(unittest.TestCase):
 
         self.write_launcher(1)
         self.assertEqual(self.launch("--wizard").returncode, 1)
-        self.assertEqual((self.root / "engine-runs").read_text().splitlines(), ["run", "run"])
+        self.assertEqual(
+            (self.root / "engine-runs").read_text().splitlines(), ["run", "run"]
+        )
 
     def test_setup_only_modes_work_with_an_unmodified_standalone_launcher(self):
         """Keep manual, automatic and check modes available without starting the game."""
@@ -427,7 +503,7 @@ class LauncherTests(unittest.TestCase):
 
         self.assertEqual(
             (self.configs / "game.cfg").read_bytes(),
-            (CONFIGS / "game.cfg").read_bytes()
+            (CONFIGS / "game.cfg").read_bytes(),
         )
 
         self.assertEqual((self.configs / "player.cfg").read_bytes(), before)
@@ -496,32 +572,45 @@ class LauncherTests(unittest.TestCase):
                     # Quake resolves exec paths against the mod first, then id1.
                     autoexec = directory / args[args.index("+exec") + 1]
                     self.assertEqual(autoexec.resolve(), self.configs / "autoexec.cfg")
-                    includes = [shlex.split(line)[1] for line in autoexec.read_text().splitlines()
-                                if line.startswith("exec ")]
-                    self.assertEqual([(directory / path).resolve() for path in includes],
-                                     [self.configs / "game.cfg", self.configs / "player.cfg"])
+                    includes = [
+                        shlex.split(line)[1]
+                        for line in autoexec.read_text().splitlines()
+                        if line.startswith("exec ")
+                    ]
+                    self.assertEqual(
+                        [(directory / path).resolve() for path in includes],
+                        [self.configs / "game.cfg", self.configs / "player.cfg"],
+                    )
                     if mod != "id1":
                         for name in ("autoexec.cfg", "game.cfg", "player.cfg"):
-                            self.assertEqual((directory / "configs" / name).read_text(),
-                                             "echo mod settings\n")
+                            self.assertEqual(
+                                (directory / "configs" / name).read_text(),
+                                "echo mod settings\n",
+                            )
         self.assertFalse((self.root / "wizard-runs").exists())
 
     def test_existing_autoexec_includes_are_migrated_without_resetting_settings(self):
         """Upgrade older configs once, retaining custom commands, comments and modes."""
         self.marker.touch()
         autoexec = self.configs / "autoexec.cfg"
-        original = (b'// exec configs/game.cfg\r\nvid_unlock\r\n'
-                    b'  exec "configs/game.cfg" // shared defaults\r\n'
-                    b'EXEC\tconfigs/player.cfg; sensitivity 7\r\n'
-                    b'bind F8 "exec configs/player.cfg"\r\nvid_restart\r\n')
-        expected = (b'// exec configs/game.cfg\r\nvid_unlock\r\n'
-                    b'  exec "../id1/configs/game.cfg" // shared defaults\r\n'
-                    b'EXEC\t../id1/configs/player.cfg; sensitivity 7\r\n'
-                    b'bind F8 "exec configs/player.cfg"\r\nvid_restart\r\n')
+        original = (
+            b"// exec configs/game.cfg\r\nvid_unlock\r\n"
+            b'  exec "configs/game.cfg" // shared defaults\r\n'
+            b"EXEC\tconfigs/player.cfg; sensitivity 7\r\n"
+            b'bind F8 "exec configs/player.cfg"\r\nvid_restart\r\n'
+        )
+        expected = (
+            b"// exec configs/game.cfg\r\nvid_unlock\r\n"
+            b'  exec "../id1/configs/game.cfg" // shared defaults\r\n'
+            b"EXEC\t../id1/configs/player.cfg; sensitivity 7\r\n"
+            b'bind F8 "exec configs/player.cfg"\r\nvid_restart\r\n'
+        )
         autoexec.write_bytes(original)
         autoexec.chmod(0o640)
-        before = {name: (self.configs / name).read_bytes()
-                  for name in ("game.cfg", "player.cfg")}
+        before = {
+            name: (self.configs / name).read_bytes()
+            for name in ("game.cfg", "player.cfg")
+        }
         result = self.launch("-game", "rogue")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(autoexec.read_bytes(), expected)
@@ -529,13 +618,20 @@ class LauncherTests(unittest.TestCase):
         modified = autoexec.stat().st_mtime_ns
         self.assertEqual(self.launch().returncode, 0)
         self.assertEqual(autoexec.stat().st_mtime_ns, modified)
-        self.assertEqual({name: (self.configs / name).read_bytes() for name in before}, before)
+        self.assertEqual(
+            {name: (self.configs / name).read_bytes() for name in before}, before
+        )
         self.assertEqual(list(self.configs.glob(".launcher-autoexec-*")), [])
         self.assertFalse((self.root / "wizard-runs").exists())
 
     def test_mod_requires_a_value_before_setup_or_launch(self):
         """A missing mod value must not consume another option or start setup."""
-        for args in (("--mod",), ("--mod", ""), ("--mod", "--wizard"), ("--mod", "+map")):
+        for args in (
+            ("--mod",),
+            ("--mod", ""),
+            ("--mod", "--wizard"),
+            ("--mod", "+map"),
+        ):
             with self.subTest(args=args):
                 result = self.launch(*args)
                 self.assertEqual(result.returncode, 2)
@@ -546,12 +642,23 @@ class LauncherTests(unittest.TestCase):
     def test_separator_forwards_launcher_options_and_shell_characters_literally(self):
         """Arguments after -- belong to the engine and are never shell code."""
         self.marker.touch()
-        arguments = ["--setup-only", "--check", "--auto", "--help", "--wizard", "--mod",
-                     "a mod", "$(touch injected)", "'quoted'"]
+        arguments = [
+            "--setup-only",
+            "--check",
+            "--auto",
+            "--help",
+            "--wizard",
+            "--mod",
+            "a mod",
+            "$(touch injected)",
+            "'quoted'",
+        ]
         result = self.launch("--", *arguments)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads((self.root / "engine.json").read_text())[-len(arguments):],
-                         arguments)
+        self.assertEqual(
+            json.loads((self.root / "engine.json").read_text())[-len(arguments) :],
+            arguments,
+        )
         self.assertFalse((self.root / "wizard-runs").exists())
         self.assertFalse((self.root / "injected").exists())
 
@@ -565,14 +672,16 @@ class LauncherTests(unittest.TestCase):
         }
         self.env.update(dict.fromkeys(variables, "old"))
         (self.root / "vkQuake.AppImage").write_text(
-            '#!/usr/bin/env python3\nimport json, os, sys\n'
-            'from pathlib import Path\n'
-            f'values = {{name: os.environ[name] for name in {list(variables)!r}}}\n'
+            "#!/usr/bin/env python3\nimport json, os, sys\n"
+            "from pathlib import Path\n"
+            f"values = {{name: os.environ[name] for name in {list(variables)!r}}}\n"
             'Path("engine-env.json").write_text(json.dumps(values))\n'
-            'sys.exit(7)\n'
+            "sys.exit(7)\n"
         )
         self.assertEqual(self.launch().returncode, 7)
-        self.assertEqual(json.loads((self.root / "engine-env.json").read_text()), variables)
+        self.assertEqual(
+            json.loads((self.root / "engine-env.json").read_text()), variables
+        )
 
     def test_help_works_without_installed_configs_or_engine(self):
         """Help is available before the remaining installation files exist."""

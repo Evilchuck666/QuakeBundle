@@ -35,18 +35,21 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
         str(steamcmd),
         # Quake only has Windows depots; without this, steamcmd on Linux/macOS
         # would download nothing.
-        "+@sSteamCmdForcePlatformType", "windows",
+        "+@sSteamCmdForcePlatformType",
+        "windows",
         # force_install_dir must come before +login.
-        "+force_install_dir", str(DOWNLOAD_DIR),
-        "+login", username,
-        "+app_update", str(APP_ID),
+        "+force_install_dir",
+        str(DOWNLOAD_DIR),
+        "+login",
+        username,
+        "+app_update",
+        str(APP_ID),
         "+quit",
     ]
 
     # steamcmd updates itself on its first run and app_update sometimes
     # fails; retrying is the usual fix.
     for attempt in range(1, attempts + 1):
-
         if attempt > 1:
             print(f"    Retrying (attempt {attempt}/{attempts})")
 
@@ -64,7 +67,6 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
                 return
 
             if match := PROGRESS_RE.search(line):
-
                 downloaded, total = int(match[3]), int(match[4]) or None
                 total_size = total or total_size
 
@@ -81,7 +83,6 @@ def download_quake(steamcmd: Path, username: str, attempts: int) -> None:
                 state = match[1]
                 progress_bar.update(downloaded - progress_bar.n)
             elif match := SUCCESS_RE.search(line):
-
                 if progress_bar is not None:
                     progress_bar.close()
 
@@ -119,7 +120,9 @@ def _download_nquake_mirror(staging: Path) -> str:
     except (configparser.Error, UnicodeError) as error:
         sys.exit(f"Invalid nQuake package locations: {error}")
 
-    mirrors = config["mirror_addresses"] if config.has_section("mirror_addresses") else {}
+    mirrors = (
+        config["mirror_addresses"] if config.has_section("mirror_addresses") else {}
+    )
     for url in mirrors.values():
         address = urlsplit(url)
         if address.scheme in ("https", "http", "ftp") and address.netloc:
@@ -132,8 +135,14 @@ def _extract_nquake_package(download: Path, content: Path) -> None:
     # Steam supplies both PAKs and the registered maps; ezQuake is installed
     # separately. Do not extract the bundled engine or shareware replacements.
     excluded = {
-        "id1/pak0.pak", "id1/pak1.pak", "id1/gpl_maps.pk3", "id1/readme.txt",
-        "ezquake.exe", "ezquake/sb/wget.exe", "x86.zip", "x64.zip",
+        "id1/pak0.pak",
+        "id1/pak1.pak",
+        "id1/gpl_maps.pk3",
+        "id1/readme.txt",
+        "ezquake.exe",
+        "ezquake/sb/wget.exe",
+        "x86.zip",
+        "x64.zip",
     }
     try:
         with zipfile.ZipFile(download) as archive:
@@ -141,7 +150,11 @@ def _extract_nquake_package(download: Path, content: Path) -> None:
                 # ZIP paths use POSIX separators even on Windows, where a
                 # leading slash alone is not considered an absolute Path.
                 relative = PurePosixPath(info.filename.replace("\\", "/"))
-                if relative.is_absolute() or ".." in relative.parts or ":" in info.filename:
+                if (
+                    relative.is_absolute()
+                    or ".." in relative.parts
+                    or ":" in info.filename
+                ):
                     sys.exit(f"Unsafe path in {download.name}: {info.filename}")
                 if relative.as_posix().lower() in excluded:
                     continue
@@ -183,7 +196,9 @@ def _install_nquake_files(content: Path, install_dir: Path) -> tuple[int, int]:
     for source in content.rglob("*"):
         destination = install_dir / source.relative_to(content)
         if not destination.resolve().is_relative_to(root):
-            sys.exit(f"nQuake destination is outside the install directory: {destination}")
+            sys.exit(
+                f"nQuake destination is outside the install directory: {destination}"
+            )
         if source.is_dir():
             destination.mkdir(parents=True, exist_ok=True)
             continue
@@ -204,9 +219,7 @@ def install_nquake_game_data(install_dir: Path | None = None) -> None:
     install_dir = INSTALL_MULTIPLAYER_DIR if install_dir is None else install_dir
     install_dir.mkdir(parents=True, exist_ok=True)
     # Temporary ZIPs and extracted files are removed even if staging fails.
-    with tempfile.TemporaryDirectory(
-        prefix=".nquake-", dir=install_dir
-    ) as tmp:
+    with tempfile.TemporaryDirectory(prefix=".nquake-", dir=install_dir) as tmp:
         staging = Path(tmp)
         mirror = _download_nquake_mirror(staging)
         content = _stage_nquake_packages(staging, mirror)
@@ -231,9 +244,11 @@ def install_multiplayer_game_data(install_dir: Path | None = None) -> None:
     expected = ("pak0.pak", "pak1.pak")
     # Steam's original data uses uppercase names; accept either case, but
     # install lowercase names so ezQuake also finds them on Linux.
-    files = {
-        path.name.lower(): path for path in source.iterdir() if path.is_file()
-    } if source.is_dir() else {}
+    files = (
+        {path.name.lower(): path for path in source.iterdir() if path.is_file()}
+        if source.is_dir()
+        else {}
+    )
     missing = [f"id1/{name}" for name in expected if name not in files]
     if missing:
         sys.exit("Files missing after download:\n  " + "\n  ".join(missing))
@@ -265,12 +280,10 @@ def install_single_player_game_data(install_dir: Path | None = None) -> None:
             pending = [Path(entry.path) for entry in entries if entry.is_dir()]
 
         while pending:
-
             directory = pending.pop()
 
             with os.scandir(directory) as entries:
                 for entry in entries:
-
                     if entry.is_dir(follow_symlinks=False):
                         pending.append(Path(entry.path))
                     else:

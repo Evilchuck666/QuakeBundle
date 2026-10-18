@@ -44,14 +44,19 @@ AUTOMATOR_STUB = Path(
 
 def desktop_value(value):
     """Escape a Desktop Entry string before its key-specific interpretation."""
-    return (str(value).replace("\\", "\\\\").replace("\n", "\\n")
-            .replace("\r", "\\r").replace("\t", "\\t"))
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
 
 
 def desktop_argument(value):
     """Quote one Exec argument, including literal percent signs and backslashes."""
     value = str(value).replace("%", "%%")
-    for character in ('\\', '"', '`', '$'):
+    for character in ("\\", '"', "`", "$"):
         value = value.replace(character, "\\" + character)
     return desktop_value('"' + value + '"')
 
@@ -61,17 +66,22 @@ def create_linux_shortcut(root, python, fetch, shortcut: Shortcut, *, command=No
     directory = Path.home() / ".local/share/applications"
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / f"{shortcut.engine}.desktop"
-    url = ("https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/"
-           f"assets/links/{destination.name}")
+    url = (
+        "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/"
+        f"assets/links/{destination.name}"
+    )
     with tempfile.TemporaryDirectory(prefix=".quake-shortcut-", dir=directory) as tmp:
         staged = Path(tmp) / destination.name
         fetch(url, staged)
         replacements = {
             "Name": desktop_value(shortcut.name),
             "Comment": desktop_value(f"Play Quake with {shortcut.engine}"),
-            "Exec": " ".join(desktop_argument(arg) for arg in (
-                command if command is not None else [python, root / "launcher.py"]
-            )),
+            "Exec": " ".join(
+                desktop_argument(arg)
+                for arg in (
+                    command if command is not None else [python, root / "launcher.py"]
+                )
+            ),
             "TryExec": desktop_value(command[0] if command is not None else python),
             "Path": desktop_value(root),
             "Icon": desktop_value(root / f"{shortcut.icon}.svg"),
@@ -96,7 +106,7 @@ def create_linux_shortcut(root, python, fetch, shortcut: Shortcut, *, command=No
     return destination
 
 
-WINDOWS_SHORTCUT_SCRIPT = r'''
+WINDOWS_SHORTCUT_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $shell = New-Object -ComObject WScript.Shell
@@ -125,7 +135,7 @@ try {
 } finally {
     if (Test-Path -LiteralPath $staged) { Remove-Item -LiteralPath $staged }
 }
-'''
+"""
 
 
 def run_native(command, **kwargs):
@@ -133,8 +143,15 @@ def run_native(command, **kwargs):
     try:
         kwargs.setdefault("env", external_environment())
         with external_libraries():
-            return subprocess.run(command, check=True, capture_output=True, text=True,
-                                  encoding="utf-8", errors="replace", **kwargs)
+            return subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                **kwargs,
+            )
     except subprocess.CalledProcessError as error:
         detail = (error.stderr or error.stdout or str(error)).strip()
         raise OSError(f"{command[0]} failed: {detail}") from error
@@ -142,15 +159,21 @@ def run_native(command, **kwargs):
 
 def create_windows_shortcut(root, shortcut: Shortcut, *, command=None):
     """Use Windows' actual Desktop location, including redirected desktops."""
-    encoded = base64.b64encode(WINDOWS_SHORTCUT_SCRIPT.encode("utf-16le")).decode("ascii")
+    encoded = base64.b64encode(WINDOWS_SHORTCUT_SCRIPT.encode("utf-16le")).decode(
+        "ascii"
+    )
     result = run_native(
         ["powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded],
-        env=dict(external_environment(), QUAKE_SHORTCUT_ROOT=str(root),
-                 QUAKE_SHORTCUT_NAME=shortcut.name,
-                 QUAKE_SHORTCUT_ICON=str(root / f"{shortcut.icon}.ico"),
-                 QUAKE_SHORTCUT_TARGET=str(command[0]) if command is not None else "",
-                 QUAKE_SHORTCUT_ARGUMENTS=subprocess.list2cmdline(command[1:])
-                 if command is not None else ""),
+        env=dict(
+            external_environment(),
+            QUAKE_SHORTCUT_ROOT=str(root),
+            QUAKE_SHORTCUT_NAME=shortcut.name,
+            QUAKE_SHORTCUT_ICON=str(root / f"{shortcut.icon}.ico"),
+            QUAKE_SHORTCUT_TARGET=str(command[0]) if command is not None else "",
+            QUAKE_SHORTCUT_ARGUMENTS=subprocess.list2cmdline(command[1:])
+            if command is not None
+            else "",
+        ),
     )
     destination = Path(result.stdout.strip())
     if not result.stdout.strip() or not destination.is_file():
@@ -158,7 +181,7 @@ def create_windows_shortcut(root, shortcut: Shortcut, *, command=None):
     return destination
 
 
-MACOS_VALIDATE_AND_ICON = '''
+MACOS_VALIDATE_AND_ICON = """
 ObjC.import('Automator');
 ObjC.import('AppKit');
 function run(argv) {
@@ -176,27 +199,41 @@ function run(argv) {
         throw Error('Could not apply the PNG shortcut icon');
     }
 }
-'''
+"""
 
 
 def build_macos_workflow(root, python, *, command=None):
     """Describe the Automator action that runs the installed Python launcher."""
-    script = "cd " + shlex.quote(str(root)) + "\nexec " + shlex.join(
-        command if command is not None else [str(python), str(root / "launcher.py")]
-    ) + "\n"
+    script = (
+        "cd "
+        + shlex.quote(str(root))
+        + "\nexec "
+        + shlex.join(
+            command if command is not None else [str(python), str(root / "launcher.py")]
+        )
+        + "\n"
+    )
     return {
         "AMDocumentVersion": "2",
-        "actions": [{"action": {
-            "ActionBundlePath": "/System/Library/Automator/Run Shell Script.action",
-            "ActionName": "Run Shell Script",
-            "BundleIdentifier": "com.apple.RunShellScript",
-            "ActionParameters": {
-                "shell": "/bin/sh", "source": script,
-                "inputMethod": 0, "CheckedForUserDefaultShell": True,
-            },
-        }}],
+        "actions": [
+            {
+                "action": {
+                    "ActionBundlePath": "/System/Library/Automator/Run Shell Script.action",
+                    "ActionName": "Run Shell Script",
+                    "BundleIdentifier": "com.apple.RunShellScript",
+                    "ActionParameters": {
+                        "shell": "/bin/sh",
+                        "source": script,
+                        "inputMethod": 0,
+                        "CheckedForUserDefaultShell": True,
+                    },
+                }
+            }
+        ],
         "connectors": [],
-        "workflowMetaData": {"workflowTypeIdentifier": "com.apple.Automator.application"},
+        "workflowMetaData": {
+            "workflowTypeIdentifier": "com.apple.Automator.application"
+        },
     }
 
 
@@ -216,8 +253,10 @@ def build_macos_application(staged, root, python, shortcut: Shortcut, *, command
         "CFBundleVersion": "1",
         "LSUIElement": True,
     }
-    for name, data in (("Info.plist", info),
-                       ("document.wflow", build_macos_workflow(root, python, command=command))):
+    for name, data in (
+        ("Info.plist", info),
+        ("document.wflow", build_macos_workflow(root, python, command=command)),
+    ):
         with (contents / name).open("wb") as output:
             plistlib.dump(data, output)
 
@@ -245,7 +284,16 @@ def create_macos_shortcut(root, python, shortcut: Shortcut, *, command=None):
     with tempfile.TemporaryDirectory(prefix=".quake-shortcut-", dir=directory) as tmp:
         staged = Path(tmp) / destination.name
         build_macos_application(staged, root, python, shortcut, command=command)
-        run_native(["/usr/bin/osascript", "-l", "JavaScript", "-e", MACOS_VALIDATE_AND_ICON,
-                    str(staged), str(root / f"{shortcut.icon}.png")])
+        run_native(
+            [
+                "/usr/bin/osascript",
+                "-l",
+                "JavaScript",
+                "-e",
+                MACOS_VALIDATE_AND_ICON,
+                str(staged),
+                str(root / f"{shortcut.icon}.png"),
+            ]
+        )
         publish_macos_application(staged, destination)
     return destination

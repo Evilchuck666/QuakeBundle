@@ -168,7 +168,9 @@ def install_vkquake_assets(install_dir: Path | None = None) -> None:
     base_url = "https://raw.githubusercontent.com/Evilchuck666/QuakeBundle/main/assets/"
     system = platform.system()
     launcher = "launcher.exe" if system == "Windows" else "launcher.py"
-    icon = {"Windows": "vkQuake.ico", "Darwin": "vkQuake.png"}.get(system, "vkQuake.svg")
+    icon = {"Windows": "vkQuake.ico", "Darwin": "vkQuake.png"}.get(
+        system, "vkQuake.svg"
+    )
     assets = (
         (f"scripts/vkQuake/{launcher}", launcher),
         (f"icons/{icon}", icon),
@@ -176,9 +178,7 @@ def install_vkquake_assets(install_dir: Path | None = None) -> None:
     install_dir.mkdir(parents=True, exist_ok=True)
 
     # Finish every download before replacing files from a previous installation.
-    with tempfile.TemporaryDirectory(
-        prefix=".vkquake-assets-", dir=install_dir
-    ) as tmp:
+    with tempfile.TemporaryDirectory(prefix=".vkquake-assets-", dir=install_dir) as tmp:
         staging = Path(tmp)
         for relative, filename in assets:
             print(f"    Downloading {filename}")
@@ -221,8 +221,11 @@ def main() -> None:
 
     parser.add_argument("--attempts", type=int, default=3, help="steamcmd retries")
     parser.add_argument(
-        "--install-dir", type=parse_install_dir, default=str(INSTALL_SINGLE_PLAYER_DIR),
-        metavar="PATH", help="game installation directory (default: %(default)s)",
+        "--install-dir",
+        type=parse_install_dir,
+        default=str(INSTALL_SINGLE_PLAYER_DIR),
+        metavar="PATH",
+        help="game installation directory (default: %(default)s)",
     )
 
     args = parser.parse_args()

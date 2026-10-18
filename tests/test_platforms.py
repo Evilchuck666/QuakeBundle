@@ -31,7 +31,11 @@ class UserDataDirectoryTests(unittest.TestCase):
             ("Windows", {}, home / "AppData" / "Local"),
             ("Windows", {"LOCALAPPDATA": str(custom)}, custom),
             ("Darwin", {}, home / "Library" / "Application Support"),
-            ("Darwin", {"XDG_DATA_HOME": str(custom)}, home / "Library" / "Application Support"),
+            (
+                "Darwin",
+                {"XDG_DATA_HOME": str(custom)},
+                home / "Library" / "Application Support",
+            ),
             ("Linux", {}, home / ".local" / "share"),
             ("Linux", {"XDG_DATA_HOME": ""}, home / ".local" / "share"),
             ("Linux", {"XDG_DATA_HOME": str(custom)}, custom),
@@ -79,7 +83,11 @@ class VkQuakeReleaseTests(unittest.TestCase):
 
     def test_unsupported_platform_does_not_fetch_a_release(self):
         """Ensure unsupported architectures do not trigger a release lookup."""
-        for system, machine in [("Linux", "aarch64"), ("Windows", "i686"), ("FreeBSD", "amd64")]:
+        for system, machine in [
+            ("Linux", "aarch64"),
+            ("Windows", "i686"),
+            ("FreeBSD", "amd64"),
+        ]:
             with (
                 self.subTest(system=system, machine=machine),
                 mock.patch.object(vkquake.platform, "system", return_value=system),
@@ -97,7 +105,9 @@ class VkQuakeReleaseTests(unittest.TestCase):
             mock.patch.object(
                 vkquake, "fetch_json", return_value={"tag_name": "1.32", "assets": []}
             ),
-            self.assertRaisesRegex(SystemExit, r"1\.32 has no \*-x86_64\.AppImage build"),
+            self.assertRaisesRegex(
+                SystemExit, r"1\.32 has no \*-x86_64\.AppImage build"
+            ),
         ):
             vkquake.vkquake_release()
 
@@ -111,24 +121,24 @@ class VkQuakeReleaseTests(unittest.TestCase):
                     {
                         "tag_name": "vkQuake-9.0",
                         "published_at": "2024-01-01T00:00:00Z",
-                        "assets": [older_asset]
+                        "assets": [older_asset],
                     },
                     {
                         "tag_name": "OtherGame-10",
                         "published_at": "2026-01-01T00:00:00Z",
-                        "assets": [older_asset]
+                        "assets": [older_asset],
                     },
                 ],
                 [
                     {
                         "tag_name": "vkQuake-3.0",
                         "published_at": "2026-01-01T00:00:00Z",
-                        "assets": []
+                        "assets": [],
                     },
                     {
                         "tag_name": "vkQuake" + separator + "2.0",
                         "published_at": "2025-01-01T00:00:00Z",
-                        "assets": [release_asset("source.zip"), newest_asset]
+                        "assets": [release_asset("source.zip"), newest_asset],
                     },
                 ],
                 [],
@@ -141,19 +151,26 @@ class VkQuakeReleaseTests(unittest.TestCase):
                 mock.patch.object(vkquake, "fetch_json", side_effect=pages) as fetch,
             ):
                 self.assertEqual(vkquake.vkquake_release(), ("2.0", newest_asset))
-                self.assertEqual(fetch.call_args_list, [
-                    mock.call(
-                        config.VKQUAKE_MAC_RELEASES_URL + "?per_page=100&page=" + str(page)
-                    )
-                    for page in (1, 2, 3)
-                ])
+                self.assertEqual(
+                    fetch.call_args_list,
+                    [
+                        mock.call(
+                            config.VKQUAKE_MAC_RELEASES_URL
+                            + "?per_page=100&page="
+                            + str(page)
+                        )
+                        for page in (1, 2, 3)
+                    ],
+                )
 
     def test_mac_missing_dmg_reports_an_error(self):
         """Ensure a missing Mac .dmg raises a clear install error."""
         with (
             mock.patch.object(vkquake.platform, "system", return_value="Darwin"),
             mock.patch.object(vkquake, "fetch_json", return_value=[]),
-            self.assertRaisesRegex(SystemExit, "No vkQuake build found on Mac Source Ports"),
+            self.assertRaisesRegex(
+                SystemExit, "No vkQuake build found on Mac Source Ports"
+            ),
         ):
             vkquake.vkquake_release()
 
@@ -193,7 +210,9 @@ class VkQuakeInstallTests(unittest.TestCase):
             mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
             mock.patch.object(vkquake.platform, "system", return_value="Linux"),
             mock.patch.object(vkquake, "fetch", side_effect=download),
-            mock.patch.object(Path, "chmod", autospec=True, side_effect=original_chmod) as chmod,
+            mock.patch.object(
+                Path, "chmod", autospec=True, side_effect=original_chmod
+            ) as chmod,
         ):
             vkquake.install_vkquake()
             chmod.assert_called_once_with(download_paths[0], 0o755)
@@ -205,11 +224,13 @@ class VkQuakeInstallTests(unittest.TestCase):
 
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
 
-        self.assertEqual(self.output.getvalue(),
-                         f"    vkQuake 1.32 ({asset['name']})\n"
-                         f"    ✔ Installed {destination}\n"
-                         "    Run it with:\n"
-                         f'      "{destination}" -basedir "{self.install_dir}"\n')
+        self.assertEqual(
+            self.output.getvalue(),
+            f"    vkQuake 1.32 ({asset['name']})\n"
+            f"    ✔ Installed {destination}\n"
+            "    Run it with:\n"
+            f'      "{destination}" -basedir "{self.install_dir}"\n',
+        )
 
     def test_windows_zip_installs_game_files_without_debug_symbols(self):
         """Confirm Windows zip installs only supported game files and drops symbols."""
@@ -227,30 +248,35 @@ class VkQuakeInstallTests(unittest.TestCase):
             mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
             mock.patch.object(vkquake.platform, "system", return_value="Windows"),
             mock.patch.object(vkquake, "fetch", side_effect=download),
-            mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.root / "unused default"),
+            mock.patch.object(
+                vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.root / "unused default"
+            ),
         ):
             vkquake.install_vkquake(self.install_dir)
 
-        files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
-                 for path in self.install_dir.rglob("*") if path.is_file()}
+        files = {
+            path.relative_to(self.install_dir).as_posix(): path.read_bytes()
+            for path in self.install_dir.rglob("*")
+            if path.is_file()
+        }
 
         self.assertEqual(
             files,
-            {"vkQuake.exe": b"executable", "support/config.cfg": b"configuration"}
+            {"vkQuake.exe": b"executable", "support/config.cfg": b"configuration"},
         )
 
         self.assertEqual(
             self.output.getvalue(),
             f"    vkQuake 1.32 ({asset['name']})\n"
             f"    ✔ Installed {self.install_dir / 'vkQuake.exe'}\n"
-            "    Run it from its folder; it uses the current directory as the game folder.\n"
+            "    Run it from its folder; it uses the current directory as the game folder.\n",
         )
 
     def test_unsupported_platform_skips_installation(self):
         """Unsupported targets should not download or install anything."""
-        with  (
+        with (
             mock.patch.object(vkquake, "vkquake_release", return_value=None),
-            mock.patch.object(vkquake, "fetch") as fetch
+            mock.patch.object(vkquake, "fetch") as fetch,
         ):
             vkquake.install_vkquake()
             fetch.assert_not_called()
@@ -303,32 +329,55 @@ class VkQuakeInstallTests(unittest.TestCase):
             mock.patch.object(vkquake, "vkquake_release", return_value=("1.32", asset)),
             mock.patch.object(vkquake.platform, "system", return_value="Darwin"),
             mock.patch.object(
-                vkquake, "fetch", side_effect=lambda url, path: path.write_bytes(b"disk image")
+                vkquake,
+                "fetch",
+                side_effect=lambda url, path: path.write_bytes(b"disk image"),
             ) as fetch,
             mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands,
-            mock.patch.object(vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.root / "unused default"),
+            mock.patch.object(
+                vkquake, "INSTALL_SINGLE_PLAYER_DIR", self.root / "unused default"
+            ),
         ):
             vkquake.install_vkquake(self.install_dir)
         image = fetch.call_args.args[1]
         mountpoint = commands.call_args_list[0].args[0][-2]
-        self.assertEqual(commands.call_args_list, [
-            mock.call(
-                ["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", mountpoint, image],
-                check=True,
-                stdout=subprocess.DEVNULL
-            ),
-            mock.call(["ditto", mountpoint / "vkQuake.app", destination], check=True),
-            mock.call(["hdiutil", "detach", mountpoint], check=False, stdout=subprocess.DEVNULL),
-        ])
+        self.assertEqual(
+            commands.call_args_list,
+            [
+                mock.call(
+                    [
+                        "hdiutil",
+                        "attach",
+                        "-nobrowse",
+                        "-readonly",
+                        "-mountpoint",
+                        mountpoint,
+                        image,
+                    ],
+                    check=True,
+                    stdout=subprocess.DEVNULL,
+                ),
+                mock.call(
+                    ["ditto", mountpoint / "vkQuake.app", destination], check=True
+                ),
+                mock.call(
+                    ["hdiutil", "detach", mountpoint],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                ),
+            ],
+        )
         self.assertEqual((destination / "binary").read_bytes(), b"new bundle")
         self.assertFalse((destination / "obsolete").exists())
         self.assertFalse(mountpoint.parent.exists())
         self.assertFalse(image.parent.exists())
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
-        self.assertEqual(self.output.getvalue(),
-                         f"    vkQuake 1.32 ({asset['name']})\n"
-                         f"    ✔ Installed {destination}\n"
-                         "    Run it by opening vkQuake.app; it uses the folder it is in.\n")
+        self.assertEqual(
+            self.output.getvalue(),
+            f"    vkQuake 1.32 ({asset['name']})\n"
+            f"    ✔ Installed {destination}\n"
+            "    Run it by opening vkQuake.app; it uses the folder it is in.\n",
+        )
 
     def test_mac_copy_failure_still_detaches_and_cleans_mount_directory(self):
         """Even a copy failure should clean up the mounted DMG directory."""
@@ -345,7 +394,7 @@ class VkQuakeInstallTests(unittest.TestCase):
 
         with (
             mock.patch.object(vkquake.subprocess, "run", side_effect=run) as commands,
-            self.assertRaises(subprocess.CalledProcessError)
+            self.assertRaises(subprocess.CalledProcessError),
         ):
             vkquake.install_vkquake_mac(image)
 
@@ -353,9 +402,14 @@ class VkQuakeInstallTests(unittest.TestCase):
 
         self.assertEqual(commands.call_count, 3)
 
-        self.assertEqual(commands.call_args, mock.call(
-            ["hdiutil", "detach", mountpoint], check=False, stdout=subprocess.DEVNULL
-        ))
+        self.assertEqual(
+            commands.call_args,
+            mock.call(
+                ["hdiutil", "detach", mountpoint],
+                check=False,
+                stdout=subprocess.DEVNULL,
+            ),
+        )
 
         self.assertFalse(mountpoint.parent.exists())
 
@@ -392,10 +446,13 @@ class EzQuakeReleaseTests(unittest.TestCase):
                 self.assertEqual(ezquake.ezquake_release(), ("3.6.9", expected))
                 fetch.assert_called_once_with(config.EZQUAKE_RELEASE_URL)
 
-
     def test_unsupported_platform_does_not_fetch_a_release(self):
         """Ensure unsupported architectures do not trigger a release lookup."""
-        for system, machine in [("Linux", "aarch64"), ("Windows", "i686"), ("FreeBSD", "amd64")]:
+        for system, machine in [
+            ("Linux", "aarch64"),
+            ("Windows", "i686"),
+            ("FreeBSD", "amd64"),
+        ]:
             with (
                 self.subTest(system=system, machine=machine),
                 mock.patch.object(ezquake.platform, "system", return_value=system),
@@ -405,7 +462,6 @@ class EzQuakeReleaseTests(unittest.TestCase):
                 self.assertIsNone(ezquake.ezquake_release())
                 fetch.assert_not_called()
 
-
     def test_missing_platform_asset_reports_the_required_build(self):
         """Confirm the message names the exact build that is missing."""
         with (
@@ -414,17 +470,20 @@ class EzQuakeReleaseTests(unittest.TestCase):
             mock.patch.object(
                 ezquake, "fetch_json", return_value={"tag_name": "3.6.9", "assets": []}
             ),
-            self.assertRaisesRegex(SystemExit, r"3\.6\.9 has no \*linux-x86_64\.zip build"),
+            self.assertRaisesRegex(
+                SystemExit, r"3\.6\.9 has no \*linux-x86_64\.zip build"
+            ),
         ):
             ezquake.ezquake_release()
-
 
     def test_mac_missing_dmg_reports_an_error(self):
         """Ensure a missing Mac .dmg raises a clear install error."""
         with (
             mock.patch.object(vkquake.platform, "system", return_value="Darwin"),
             mock.patch.object(vkquake, "fetch_json", return_value=[]),
-            self.assertRaisesRegex(SystemExit, "No vkQuake build found on Mac Source Ports"),
+            self.assertRaisesRegex(
+                SystemExit, "No vkQuake build found on Mac Source Ports"
+            ),
         ):
             vkquake.vkquake_release()
 
@@ -444,7 +503,6 @@ class EzQuakeInstallTests(unittest.TestCase):
         self.output = io.StringIO()
         stack.enter_context(contextlib.redirect_stdout(self.output))
 
-
     def test_appimage_replaces_previous_version_and_is_executable(self):
         """Verify AppImage updates replace the prior binary and keep it executable."""
         self.install_dir.mkdir(parents=True)
@@ -463,10 +521,14 @@ class EzQuakeInstallTests(unittest.TestCase):
         original_chmod = Path.chmod
 
         with (
-            mock.patch.object(ezquake, "ezquake_release", return_value=("3.6.9", asset)),
+            mock.patch.object(
+                ezquake, "ezquake_release", return_value=("3.6.9", asset)
+            ),
             mock.patch.object(ezquake.platform, "system", return_value="Linux"),
             mock.patch.object(ezquake, "fetch", side_effect=download),
-            mock.patch.object(Path, "chmod", autospec=True, side_effect=original_chmod) as chmod,
+            mock.patch.object(
+                Path, "chmod", autospec=True, side_effect=original_chmod
+            ) as chmod,
         ):
             ezquake.install_ezquake()
             chmod.assert_called_once_with(
@@ -480,12 +542,13 @@ class EzQuakeInstallTests(unittest.TestCase):
 
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
 
-        self.assertEqual(self.output.getvalue(),
-                         f"    ezQuake 3.6.9 ({asset['name']})\n"
-                         f"    ✔ Installed {destination}\n"
-                         "    Run it with:\n"
-                         f'      "{destination}" -basedir "{self.install_dir}"\n')
-
+        self.assertEqual(
+            self.output.getvalue(),
+            f"    ezQuake 3.6.9 ({asset['name']})\n"
+            f"    ✔ Installed {destination}\n"
+            "    Run it with:\n"
+            f'      "{destination}" -basedir "{self.install_dir}"\n',
+        )
 
     def test_windows_zip_installs_game_files_without_debug_symbols(self):
         """Confirm Windows zip installs only supported game files and drops symbols."""
@@ -500,41 +563,46 @@ class EzQuakeInstallTests(unittest.TestCase):
                 archive.writestr("support/library.pdb", b"more symbols")
 
         with (
-            mock.patch.object(ezquake, "ezquake_release", return_value=("3.6.9", asset)),
+            mock.patch.object(
+                ezquake, "ezquake_release", return_value=("3.6.9", asset)
+            ),
             mock.patch.object(ezquake.platform, "system", return_value="Windows"),
             mock.patch.object(ezquake, "fetch", side_effect=download),
-            mock.patch.object(ezquake, "INSTALL_MULTIPLAYER_DIR", self.root / "unused default"),
+            mock.patch.object(
+                ezquake, "INSTALL_MULTIPLAYER_DIR", self.root / "unused default"
+            ),
         ):
             ezquake.install_ezquake(self.install_dir)
 
-        files = {path.relative_to(self.install_dir).as_posix(): path.read_bytes()
-                 for path in self.install_dir.rglob("*") if path.is_file()}
+        files = {
+            path.relative_to(self.install_dir).as_posix(): path.read_bytes()
+            for path in self.install_dir.rglob("*")
+            if path.is_file()
+        }
 
         self.assertEqual(
             files,
-            {"ezQuake.exe": b"executable", "support/config.cfg": b"configuration"}
+            {"ezQuake.exe": b"executable", "support/config.cfg": b"configuration"},
         )
 
         self.assertEqual(
             self.output.getvalue(),
             f"    ezQuake 3.6.9 ({asset['name']})\n"
             f"    ✔ Installed {self.install_dir / 'ezQuake.exe'}\n"
-            "    Run it from its folder; it uses the current directory as the game folder.\n"
+            "    Run it from its folder; it uses the current directory as the game folder.\n",
         )
-
 
     def test_unsupported_platform_skips_installation(self):
         """Unsupported targets should not download or install anything."""
-        with  (
+        with (
             mock.patch.object(ezquake, "ezquake_release", return_value=None),
-            mock.patch.object(ezquake, "fetch") as fetch
+            mock.patch.object(ezquake, "fetch") as fetch,
         ):
             ezquake.install_ezquake()
             fetch.assert_not_called()
 
         self.assertFalse(self.install_dir.exists())
         self.assertIn("skipping", self.output.getvalue())
-
 
     def test_download_failure_keeps_previous_appimage_and_cleans_temporary_files(self):
         """A failed download must leave the previous AppImage intact."""
@@ -549,7 +617,9 @@ class EzQuakeInstallTests(unittest.TestCase):
         asset = release_asset("ezQuake-linux-x86_64.zip")
 
         with (
-            mock.patch.object(ezquake, "ezquake_release", return_value=("3.6.9", asset)),
+            mock.patch.object(
+                ezquake, "ezquake_release", return_value=("3.6.9", asset)
+            ),
             mock.patch.object(ezquake.platform, "system", return_value="Linux"),
             mock.patch.object(ezquake, "fetch", side_effect=fail_download),
             self.assertRaisesRegex(OSError, "download interrupted"),
@@ -558,7 +628,6 @@ class EzQuakeInstallTests(unittest.TestCase):
 
         self.assertEqual(destination.read_bytes(), b"working version")
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
-
 
     def test_mac_zip_replaces_app_and_cleans_temporary_files(self):
         """Extract a real ZIP through ditto before replacing the installed app."""
@@ -581,27 +650,40 @@ class EzQuakeInstallTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 0)
 
         with (
-            mock.patch.object(ezquake, "ezquake_release", return_value=("3.6.9", asset)),
+            mock.patch.object(
+                ezquake, "ezquake_release", return_value=("3.6.9", asset)
+            ),
             mock.patch.object(ezquake.platform, "system", return_value="Darwin"),
             mock.patch.object(ezquake, "fetch", side_effect=download) as fetch,
             mock.patch.object(ezquake.subprocess, "run", side_effect=run) as commands,
-            mock.patch.object(ezquake, "INSTALL_MULTIPLAYER_DIR", self.root / "unused default"),
+            mock.patch.object(
+                ezquake, "INSTALL_MULTIPLAYER_DIR", self.root / "unused default"
+            ),
         ):
             ezquake.install_ezquake(self.install_dir)
         download = fetch.call_args.args[1]
         extracted = commands.call_args_list[0].args[0][-1]
-        self.assertEqual(commands.call_args_list, [
-            mock.call(["ditto", "-x", "-k", download, extracted], check=True),
-            mock.call(["ditto", extracted / "ezQuake.app", destination], check=True),
-        ])
-        self.assertEqual((destination / "Contents/MacOS/ezQuake").read_bytes(), b"new bundle")
+        self.assertEqual(
+            commands.call_args_list,
+            [
+                mock.call(["ditto", "-x", "-k", download, extracted], check=True),
+                mock.call(
+                    ["ditto", extracted / "ezQuake.app", destination], check=True
+                ),
+            ],
+        )
+        self.assertEqual(
+            (destination / "Contents/MacOS/ezQuake").read_bytes(), b"new bundle"
+        )
         self.assertFalse((destination / "obsolete").exists())
         self.assertFalse(extracted.exists())
         self.assertFalse(download.parent.exists())
         self.assertEqual(list(self.install_dir.iterdir()), [destination])
         self.assertIn(f"✔ Installed {destination}", self.output.getvalue())
 
-    def test_mac_extraction_failure_preserves_previous_app_and_cleans_temporary_files(self):
+    def test_mac_extraction_failure_preserves_previous_app_and_cleans_temporary_files(
+        self,
+    ):
         """A damaged ZIP must not remove the working installation."""
         destination = self.install_dir / "ezQuake.app"
         destination.mkdir(parents=True)
@@ -610,8 +692,11 @@ class EzQuakeInstallTests(unittest.TestCase):
         download.write_bytes(b"invalid zip")
 
         with (
-            mock.patch.object(ezquake.subprocess, "run", side_effect=
-                              subprocess.CalledProcessError(1, "ditto")) as commands,
+            mock.patch.object(
+                ezquake.subprocess,
+                "run",
+                side_effect=subprocess.CalledProcessError(1, "ditto"),
+            ) as commands,
             self.assertRaises(subprocess.CalledProcessError),
         ):
             ezquake.install_ezquake_mac(download)
@@ -643,6 +728,7 @@ class EzQuakeInstallTests(unittest.TestCase):
         asset = release_asset("ezQuake-linux-x86_64.zip")
 
         for corrupt in (True, False):
+
             def download(_url, path, corrupt=corrupt):
                 if corrupt:
                     path.write_bytes(b"invalid zip")
@@ -652,7 +738,9 @@ class EzQuakeInstallTests(unittest.TestCase):
 
             with (
                 self.subTest(corrupt=corrupt),
-                mock.patch.object(ezquake, "ezquake_release", return_value=("3.6.9", asset)),
+                mock.patch.object(
+                    ezquake, "ezquake_release", return_value=("3.6.9", asset)
+                ),
                 mock.patch.object(ezquake.platform, "system", return_value="Linux"),
                 mock.patch.object(ezquake, "fetch", side_effect=download),
                 self.assertRaises(zipfile.BadZipFile if corrupt else KeyError),

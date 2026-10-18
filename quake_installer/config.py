@@ -45,18 +45,26 @@ def parse_install_dir(value: str) -> Path:
             raise ValueError(f"not a directory: {directory}")
         for temporary in (DOWNLOAD_DIR, STEAMCMD_DIR):
             if directory.is_relative_to(temporary.resolve()):
-                raise ValueError(f"the installation directory cannot be inside {temporary}")
+                raise ValueError(
+                    f"the installation directory cannot be inside {temporary}"
+                )
     except (OSError, RuntimeError, ValueError) as error:
         raise argparse.ArgumentTypeError(str(error)) from error
     return directory
 
 
 VKQUAKE_RELEASE_URL = "https://api.github.com/repos/Novum/vkQuake/releases/latest"
-EZQUAKE_RELEASE_URL = "https://api.github.com/repos/QW-Group/ezquake-source/releases/latest"
-NQUAKE_INI_URL = "https://raw.githubusercontent.com/nQuake/client-win32/master/etc/nquake.ini"
+EZQUAKE_RELEASE_URL = (
+    "https://api.github.com/repos/QW-Group/ezquake-source/releases/latest"
+)
+NQUAKE_INI_URL = (
+    "https://raw.githubusercontent.com/nQuake/client-win32/master/etc/nquake.ini"
+)
 
 # vkQuake publishes no macOS build; Mac Source Ports does (universal binary).
-VKQUAKE_MAC_RELEASES_URL = "https://api.github.com/repos/MacSourcePorts/MSPBuildSystem/releases"
+VKQUAKE_MAC_RELEASES_URL = (
+    "https://api.github.com/repos/MacSourcePorts/MSPBuildSystem/releases"
+)
 
 STEAMCMD_URLS = {
     "Linux": "https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz",

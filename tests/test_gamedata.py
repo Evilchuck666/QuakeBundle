@@ -22,7 +22,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
         """Keep downloaded and installed files in a temporary directory."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="quake data ")))
+        root = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="quake data "))
+        )
         self.download = root / "download"
         self.install = root / "multiplayer"
         self.rerelease = self.download / "rerelease"
@@ -35,7 +37,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
         }.items():
             stack.enter_context(patch.object(gamedata, name, path))
         self.output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        self.nquake = stack.enter_context(patch.object(gamedata, "install_nquake_game_data"))
+        self.nquake = stack.enter_context(
+            patch.object(gamedata, "install_nquake_game_data")
+        )
 
     @staticmethod
     def write(path, content):
@@ -72,7 +76,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
                 self.nquake.reset_mock()
 
                 for name, content in zip(names, (b"original pak0", b"original pak1")):
-                    self.assertEqual((self.install / "id1" / name.lower()).read_bytes(), content)
+                    self.assertEqual(
+                        (self.install / "id1" / name.lower()).read_bytes(), content
+                    )
                     self.assertFalse((self.download / "id1" / name).exists())
                 self.assertEqual(
                     sorted(path.name for path in (self.install / "id1").iterdir()),
@@ -80,7 +86,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
                 )
                 for path, content in preserved.items():
                     self.assertEqual(path.read_bytes(), content)
-        self.assertIn(f"2 files, {gamedata.mb(26)} in {self.install}", self.output.getvalue())
+        self.assertIn(
+            f"2 files, {gamedata.mb(26)} in {self.install}", self.output.getvalue()
+        )
 
     def test_missing_source_reports_all_required_files_without_creating_install(self):
         """Report an absent download without leaving an empty installation."""
@@ -105,7 +113,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
                 with self.assertRaisesRegex(SystemExit, f"id1/{missing}"):
                     gamedata.install_multiplayer_game_data()
                 self.assertEqual(source.read_bytes(), b"new data")
-                self.assertEqual((self.install / "id1" / present).read_bytes(), b"old data")
+                self.assertEqual(
+                    (self.install / "id1" / present).read_bytes(), b"old data"
+                )
                 source.unlink()
         self.assertEqual(self.output.getvalue(), "")
         self.nquake.assert_not_called()
@@ -116,7 +126,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
         (self.download / "id1/PAK1.PAK").mkdir()
         with self.assertRaisesRegex(SystemExit, "id1/pak1.pak"):
             gamedata.install_multiplayer_game_data()
-        self.assertEqual((self.download / "id1/PAK0.PAK").read_bytes(), b"original data")
+        self.assertEqual(
+            (self.download / "id1/PAK0.PAK").read_bytes(), b"original data"
+        )
         self.assertFalse(self.install.exists())
         self.nquake.assert_not_called()
 
@@ -130,7 +142,9 @@ class MultiplayerGameDataTests(unittest.TestCase):
             gamedata.install_multiplayer_game_data()
         for name in ("pak0.pak", "pak1.pak"):
             self.assertEqual((self.download / "id1" / name).read_bytes(), b"Steam data")
-            self.assertEqual((self.install / "id1" / name).read_bytes(), b"installed data")
+            self.assertEqual(
+                (self.install / "id1" / name).read_bytes(), b"installed data"
+            )
 
 
 class NQuakeGameDataTests(unittest.TestCase):
@@ -140,7 +154,9 @@ class NQuakeGameDataTests(unittest.TestCase):
         """Create local nQuake packages and replace network downloads with file copies."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        self.root = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="nquake data ")))
+        self.root = Path(
+            stack.enter_context(tempfile.TemporaryDirectory(prefix="nquake data "))
+        )
         self.install = self.root / "multiplayer"
         self.download = self.root / "download"
         self.distribution = self.root / "distribution"
@@ -189,7 +205,9 @@ class NQuakeGameDataTests(unittest.TestCase):
         }
         for name, files in self.packages.items():
             self.write_zip(name, files)
-        stack.enter_context(patch.object(gamedata, "INSTALL_MULTIPLAYER_DIR", self.install))
+        stack.enter_context(
+            patch.object(gamedata, "INSTALL_MULTIPLAYER_DIR", self.install)
+        )
         stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", self.download))
         self.fetch = stack.enter_context(
             patch.object(gamedata, "fetch", side_effect=self.fetch_file)
@@ -217,8 +235,11 @@ class NQuakeGameDataTests(unittest.TestCase):
         """Return installed file contents keyed by relative POSIX paths."""
         if not self.install.exists():
             return {}
-        return {p.relative_to(self.install).as_posix(): p.read_bytes()
-                for p in self.install.rglob("*") if p.is_file()}
+        return {
+            p.relative_to(self.install).as_posix(): p.read_bytes()
+            for p in self.install.rglob("*")
+            if p.is_file()
+        }
 
     def test_installs_base_and_all_addons_with_steam_paks_and_preserves_settings(self):
         """Install every package through the public entry point, without engine downloads."""
@@ -247,24 +268,46 @@ class NQuakeGameDataTests(unittest.TestCase):
         for name in ("pak0.pak", "pak1.pak"):
             self.assertEqual(actual[f"id1/{name}"], b"Steam " + name.encode())
             self.assertFalse((self.download / "id1" / name.upper()).exists())
-        for name in ("id1/gpl_maps.pk3", "id1/readme.txt", "ID1/PAK0.PAK",
-                     "ezquake/sb/wget.exe", "x64.zip"):
+        for name in (
+            "id1/gpl_maps.pk3",
+            "id1/readme.txt",
+            "ID1/PAK0.PAK",
+            "ezquake/sb/wget.exe",
+            "x64.zip",
+        ):
             self.assertNotIn(name, actual)
-        for name in ("ezquake/ezquake.pk3", "qw/skins/player.png", "qw/maps/update.bsp",
-                     "qw/nquake.pk3", "qw/maps/custom.bsp", "arena/arena.pk3",
-                     "prox/prox.pk3", "fortress/pak0.pak", "qw/qrp_maps_textures_1.pk3"):
-            expected = next(files[name] for files in self.packages.values() if name in files)
+        for name in (
+            "ezquake/ezquake.pk3",
+            "qw/skins/player.png",
+            "qw/maps/update.bsp",
+            "qw/nquake.pk3",
+            "qw/maps/custom.bsp",
+            "arena/arena.pk3",
+            "prox/prox.pk3",
+            "fortress/pak0.pak",
+            "qw/qrp_maps_textures_1.pk3",
+        ):
+            expected = next(
+                files[name] for files in self.packages.values() if name in files
+            )
             self.assertEqual(actual[name], expected)
         for name in (
-            "readme.txt", "qw/autoexec.cfg", "prox/configs/config.cfg", "fortress/default.cfg"
+            "readme.txt",
+            "qw/autoexec.cfg",
+            "prox/configs/config.cfg",
+            "fortress/default.cfg",
         ):
-            expected = next(files[name] for files in self.packages.values() if name in files)
+            expected = next(
+                files[name] for files in self.packages.values() if name in files
+            )
             if os.name != "nt":
                 expected = expected.replace(b"\r\n", b"\n")
             self.assertEqual(actual[name], expected)
         self.assertTrue((self.install / "qw/demos").is_dir())
-        self.assertEqual([call.args[0] for call in self.fetch.call_args_list],
-                         [gamedata.NQUAKE_INI_URL] + [f"{self.mirror}/{p}" for p in self.packages])
+        self.assertEqual(
+            [call.args[0] for call in self.fetch.call_args_list],
+            [gamedata.NQUAKE_INI_URL] + [f"{self.mirror}/{p}" for p in self.packages],
+        )
         self.assertEqual(list(self.install.glob(".nquake-*")), [])
 
     def test_invalid_manifest_stops_before_package_downloads(self):
@@ -283,9 +326,13 @@ class NQuakeGameDataTests(unittest.TestCase):
                 self.assertEqual(self.fetch.call_count, 1)
                 self.assertEqual(list(self.install.iterdir()), [])
 
-    def test_failed_download_or_corrupt_archive_preserves_install_and_cleans_temporary_files(self):
+    def test_failed_download_or_corrupt_archive_preserves_install_and_cleans_temporary_files(
+        self,
+    ):
         """Preserve installed files and remove staging files when a package fails."""
-        MultiplayerGameDataTests.write(self.install / "qw/maps/update.bsp", b"installed map")
+        MultiplayerGameDataTests.write(
+            self.install / "qw/maps/update.bsp", b"installed map"
+        )
         before = self.installed_files()
 
         def fail_download(url, destination):
@@ -311,13 +358,20 @@ class NQuakeGameDataTests(unittest.TestCase):
     def test_rejects_archive_paths_outside_install_directory(self):
         """Reject archive paths that could write outside the installation directory."""
         for path in (
-            "../../escaped.cfg", "/escaped.cfg", "\\escaped.cfg",
-            "C:\\escaped.cfg", "C:escaped.cfg", "..\\escaped.cfg",
-            "//server/share/escaped.cfg", "\\\\server\\share\\escaped.cfg",
+            "../../escaped.cfg",
+            "/escaped.cfg",
+            "\\escaped.cfg",
+            "C:\\escaped.cfg",
+            "C:escaped.cfg",
+            "..\\escaped.cfg",
+            "//server/share/escaped.cfg",
+            "\\\\server\\share\\escaped.cfg",
         ):
             with self.subTest(path=path):
                 self.write_zip("addon-textures.zip", {path: b"outside"})
-                with self.assertRaisesRegex(SystemExit, "Unsafe path in addon-textures.zip"):
+                with self.assertRaisesRegex(
+                    SystemExit, "Unsafe path in addon-textures.zip"
+                ):
                     gamedata.install_nquake_game_data()
                 self.assertEqual(list(self.install.iterdir()), [])
 
@@ -329,7 +383,9 @@ class DownloadProgressTests(unittest.TestCase):
         """Set up a temporary download directory and capture stdout."""
         stack = contextlib.ExitStack()
         self.addCleanup(stack.close)
-        directory = stack.enter_context(tempfile.TemporaryDirectory(prefix="quake data "))
+        directory = stack.enter_context(
+            tempfile.TemporaryDirectory(prefix="quake data ")
+        )
         stack.enter_context(patch.object(gamedata, "DOWNLOAD_DIR", Path(directory)))
         self.output = stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
 
@@ -365,14 +421,16 @@ class DownloadProgressTests(unittest.TestCase):
             self.assertEqual(bars[0].desc, "    verifying")
             return 0, []
 
-        with patch.object(gamedata, "byte_bar", side_effect=make_bar), patch.object(
-            gamedata, "run_captured", side_effect=run
+        with (
+            patch.object(gamedata, "byte_bar", side_effect=make_bar),
+            patch.object(gamedata, "run_captured", side_effect=run),
         ):
             gamedata.download_quake(Path("steamcmd"), "test-user", 1)
         self.assertEqual(self.output.getvalue(), "    ✔ installed (2.0 MB)\n")
 
     def test_redirected_output_handles_disabled_bars_and_keeps_last_known_size(self):
         """Keep the last known byte count when status updates arrive without a visible bar."""
+
         def run(_command, on_line):
             for line in (
                 "Update state (0x61) downloading, progress: 0.00 (0 / 1048576)",
