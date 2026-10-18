@@ -6,7 +6,15 @@ import math
 from argparse import ArgumentTypeError
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QProcessEnvironment, QSettings, QSize, Qt, QUrl
+from PySide6.QtCore import (
+    QProcess,
+    QProcessEnvironment,
+    QRegularExpression,
+    QSettings,
+    QSize,
+    Qt,
+    QUrl,
+)
 from PySide6.QtGui import (
     QColor,
     QDesktopServices,
@@ -14,11 +22,11 @@ from PySide6.QtGui import (
     QLinearGradient,
     QPainter,
     QPen,
+    QRegularExpressionValidator,
 )
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -51,6 +59,14 @@ from .library import (
 )
 from .theme import STYLE
 from .worker import InstallWorker
+
+
+class SensitivityValidator(QRegularExpressionValidator):
+    def __init__(self, parent=None):
+        super().__init__(QRegularExpression(r"[0-9]*(?:\.[0-9]*)?"), parent)
+
+    def validate(self, text, position):
+        return super().validate(text.replace(",", "."), position)
 
 
 def label(text, kind=None, wrap=False):
@@ -214,9 +230,8 @@ class MainWindow(QMainWindow):
         self.advanced.setObjectName("transparent")
         options = QGridLayout(self.advanced)
         options.setContentsMargins(0, 0, 0, 0)
-        self.sensitivity = QDoubleSpinBox()
-        self.sensitivity.setRange(0.01, 1000)
-        self.sensitivity.setValue(3)
+        self.sensitivity = QLineEdit("3")
+        self.sensitivity.setValidator(SensitivityValidator(self.sensitivity))
         self.sensitivity.setAccessibleName("Sensibilidad del ratón")
         self.team = QLineEdit()
         self.fakename = QLineEdit()
@@ -364,7 +379,10 @@ class MainWindow(QMainWindow):
             player = read_player(self.edition, root)
             self.player_name.setText(player["name"] or "Player")
             sensitivity = float(player["sensitivity"] or 3)
-            self.sensitivity.setValue(sensitivity if math.isfinite(sensitivity) else 3)
+            sensitivity = (
+                min(1000, max(0.01, sensitivity)) if math.isfinite(sensitivity) else 3
+            )
+            self.sensitivity.setText(str(sensitivity))
             self.team.setText(player["team"])
             self.fakename.setText(player["cl_fakename"])
         except (OSError, ValueError, ArgumentTypeError) as error:
@@ -424,9 +442,17 @@ class MainWindow(QMainWindow):
             self.directory_changed()
 
     def player(self):
+        try:
+            sensitivity = float(self.sensitivity.text().strip().replace(",", "."))
+        except ValueError:
+            raise ValueError(
+                "Escribe una sensibilidad numérica entre 0,01 y 1000."
+            ) from None
+        if not math.isfinite(sensitivity) or not 0.01 <= sensitivity <= 1000:
+            raise ValueError("La sensibilidad debe estar entre 0,01 y 1000.")
         data = {
             "name": self.player_name.text().strip(),
-            "sensitivity": self.sensitivity.value(),
+            "sensitivity": sensitivity,
             "team": self.team.text(),
             "fakename": self.fakename.text(),
         }

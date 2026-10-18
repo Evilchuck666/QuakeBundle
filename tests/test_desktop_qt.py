@@ -13,7 +13,8 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 HAS_QT = importlib.util.find_spec("PySide6") is not None
 if HAS_QT:
-    from PySide6.QtCore import QSettings
+    from PySide6.QtCore import QSettings, Qt
+    from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication
 
     from quake_gui.library import ASSETS, EDITIONS, configure
@@ -51,6 +52,71 @@ class DesktopQtTests(unittest.TestCase):
         window = MainWindow(settings)
         self.addCleanup(window.deleteLater)
         return window
+
+    def test_sensitivity_can_be_typed_and_saved_with_either_decimal_separator(self):
+        window = self.window()
+        window.advanced.show()
+        window.show()
+        self.app.processEvents()
+        for text in ("3,50", "2.75", "0.01", "1000"):
+            with self.subTest(text=text):
+                QTest.mouseClick(window.sensitivity, Qt.MouseButton.LeftButton)
+                QTest.keyClick(
+                    window.sensitivity,
+                    Qt.Key.Key_A,
+                    Qt.KeyboardModifier.ControlModifier,
+                )
+                QTest.keyClick(window.sensitivity, Qt.Key.Key_Backspace)
+                self.assertEqual(window.sensitivity.text(), "")
+                QTest.keyClicks(window.sensitivity, text)
+                QTest.keyClick(window.sensitivity, Qt.Key.Key_Tab)
+                self.assertEqual(window.sensitivity.text(), text.replace(",", "."))
+                player = window.player()
+                expected = float(text.replace(",", "."))
+                self.assertEqual(player["sensitivity"], expected)
+                configure(window.edition, window.root_path(), **player)
+                window.directory_changed()
+                self.assertEqual(window.player()["sensitivity"], expected)
+        window.close()
+
+    def test_sensitivity_normalizes_paste_and_rejects_invalid_characters(self):
+        window = self.window()
+        field = window.sensitivity
+        field.clear()
+        QTest.keyClicks(field, "1a -+e/2")
+        self.assertEqual(field.text(), "12")
+        field.setCursorPosition(1)
+        QTest.keyClicks(field, ",")
+        self.assertEqual(field.text(), "1.2")
+        self.assertEqual(field.cursorPosition(), 2)
+        QTest.keyClicks(field, ".,3")
+        self.assertEqual(field.text(), "1.32")
+        clipboard = self.app.clipboard()
+        original = clipboard.text()
+        try:
+            field.selectAll()
+            clipboard.setText("4,25")
+            field.paste()
+            self.assertEqual(field.text(), "4.25")
+            for text in ("abc", "1.2.3", "1,2.3", "-3", "1e2", " 3 "):
+                with self.subTest(text=text):
+                    field.selectAll()
+                    clipboard.setText(text)
+                    field.paste()
+                    self.assertEqual(field.text(), "4.25")
+        finally:
+            clipboard.setText(original)
+
+    def test_invalid_sensitivity_prevents_installation(self):
+        window = self.window()
+        window.username.setText("account")
+        for text in ("", "abc", "0", "-1", "0.001", "1001", "nan", "inf"):
+            with self.subTest(text=text), patch.object(window, "error") as error:
+                window.sensitivity.setText(text)
+                window.start_install()
+                self.assertIsNone(window.worker)
+                error.assert_called_once()
+                self.assertIn("sensibilidad", error.call_args.args[0])
 
     def test_full_install_reuses_backend_and_preserves_existing_configs(self):
         for key, edition in EDITIONS.items():
