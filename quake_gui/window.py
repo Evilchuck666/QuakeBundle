@@ -402,11 +402,12 @@ class MainWindow(QMainWindow):
             for folder, title in (
                 ("hipnotic", "Scourge of Armagon"),
                 ("rogue", "Dissolution of Eternity"),
-                ("mg1", "Dimension of the Machine"),
                 ("dopa", "Dimension of the Past"),
+                ("mg1", "Dimension of the Machine"),
                 ("mg3", "Dawn of the Machine"),
+                ("ctf", "Capture the Flag"),
+                ("arena", "Clan Arena"),
                 ("fortress", "Team Fortress"),
-                ("ca", "Clan Arena"),
             ):
                 if (root / folder).is_dir():
                     self.mods.addItem(title, folder)
