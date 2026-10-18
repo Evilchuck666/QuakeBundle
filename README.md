@@ -46,6 +46,9 @@ los motores y los datos del juego se descargan durante la instalación; no está
 incluidos en el paquete. La contraseña y Steam Guard se solicitan en la ventana
 y se envían por la entrada del proceso, nunca como argumentos. QuakeBundle no
 los guarda ni registra; SteamCMD puede conservar su propia sesión de Steam.
+En Windows, el inicio de sesión usa una consola virtual oculta (ConPTY) para
+recibir las peticiones de contraseña y Steam Guard. Su soporte está incluido
+en el paquete autónomo; no requiere instalar Python ni componentes adicionales.
 
 La GUI conserva SteamCMD entre instalaciones y lo reutiliza para ambas ediciones,
 comprobando sus actualizaciones antes de usarlo. Se instala en

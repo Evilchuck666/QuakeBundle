@@ -49,6 +49,12 @@ The tests exercise the CLI in a separate process, the installation flow with
 synthetic game data, preservation of saves/configuration, retries, cleanup,
 platform paths, archive extraction, engine selection, download handling, and
 SteamCMD output capture through the runner's native PTY or Windows pipes.
+GUI authentication uses ConPTY on Windows. With the GUI requirements installed,
+`test_windows_console.py` exercises actual `WriteConsoleW`/`ReadConsoleW` prompts
+for password and Steam Guard, cancellation, and secret-free process arguments.
+The fixture requires real console handles, so ordinary pipes cannot pass it.
+The frozen Windows `--smoke-test` also sends a response through ConPTY using only
+Windows' `cmd.exe`, verifying the bundled native extension without system Python.
 The ezQuake and vkQuake wizard checks cover first-run state and configuration
 recovery. Both wizards are integrated into their standalone `launcher.py`.
 `test_launcher_platforms.py` exercises both scripts with simulated Linux,

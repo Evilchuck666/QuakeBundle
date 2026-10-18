@@ -17,10 +17,16 @@ from .runtime import external_environment, external_libraries
 def run_process(command, cwd, output, checkpoint, interactive=False, timeout=1800):
     """Deliver chunks (including prompts without newlines) and reap the child.
 
-    A PTY on POSIX prevents SteamCMD buffering its prompts. Windows uses pipes
-    and CREATE_NO_WINDOW. The reader never calls UI code. Cancellation kills
+    A PTY on POSIX prevents SteamCMD buffering its prompts. Interactive Windows
+    sessions need ConPTY: SteamCMD uses console APIs that pipes cannot provide.
+    Noninteractive Windows commands use pipes. The reader never calls UI code. Cancellation kills
     the process group on POSIX so steamcmd.sh cannot leave a child behind.
     """
+    if os.name == "nt" and interactive:
+        from .windows_console import run_console
+
+        return run_console(command, cwd, output, checkpoint, timeout)
+
     master = slave = None
     proc = reader = None
     chunks = queue.Queue()
@@ -116,6 +122,9 @@ def run_process(command, cwd, output, checkpoint, interactive=False, timeout=180
 PASSWORD = re.compile(
     r"(?:password\s*:|enter[^\r\n]*password[^\r\n]*[:>])", re.IGNORECASE
 )
+TERMINAL_ESCAPE = re.compile(
+    r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[=>78])"
+)
 GUARD = re.compile(
     r"(?:(?:steam\s+guard|two.factor|auth(?:entication)?|authenticator)[^\r\n]*code"
     r"|(?:enter|provide)[^\r\n]*(?:code|token))\s*[:>]\s*$",
@@ -130,7 +139,9 @@ def login(steamcmd, username, cwd, ask, checkpoint, status):
 
     def output(chunk, send):
         nonlocal pending
-        pending = (pending + decoder.decode(chunk))[-8192:]
+        # ConPTY emits terminal formatting even when the GUI has no console.
+        # Keep incomplete escape sequences across reads, just like prompts.
+        pending = TERMINAL_ESCAPE.sub("", pending + decoder.decode(chunk))[-8192:]
         # Keep partial prompts across reads, but consume each challenge once.
         if match := PASSWORD.search(pending):
             pending = pending[match.end() :]

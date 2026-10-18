@@ -1,8 +1,12 @@
 # Build on the target OS: python -m PyInstaller --noconfirm QuakeBundle.spec
 from pathlib import Path
 import sys
+from PyInstaller.utils.hooks import collect_all
 
 root = Path(SPECPATH)
+console_datas, console_binaries, console_imports = (
+    collect_all("winpty") if sys.platform == "win32" else ([], [], [])
+)
 analysis = Analysis(
     [str(root / "quakebundle.py")],
     pathex=[str(root)],
@@ -11,8 +15,9 @@ analysis = Analysis(
            (str(root / "assets" / "links"), "assets/links"),
            (str(root / "assets/scripts/vkQuake/launcher.py"), "assets/scripts/vkQuake"),
            (str(root / "assets/scripts/ezQuake/launcher.py"), "assets/scripts/ezQuake"),
-           (str(root / "README.md"), ".")],
-    hiddenimports=["certifi"],
+           (str(root / "README.md"), ".")] + console_datas,
+    binaries=console_binaries,
+    hiddenimports=["certifi"] + console_imports,
     excludes=["tkinter", "PyQt5", "PyQt6", "PySide2"],
     noarchive=False,
 )

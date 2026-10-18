@@ -68,6 +68,12 @@ def main(argv=None):
                 assert Path(certifi.where()).is_file(), (
                     "Missing bundled TLS certificates"
                 )
+                if sys.platform == "win32":
+                    # Exercise the bundled native extension from the windowed
+                    # executable, without relying on an external Python.
+                    from quake_installer.windows_console import smoke_test
+
+                    smoke_test(temporary.path())
                 for key, edition in EDITIONS.items():
                     window.select_edition(key)
                     assert (ASSETS / f"icons/{edition.engine}.png").is_file()
