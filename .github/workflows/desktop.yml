@@ -53,7 +53,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 xvfb xauth
+          sudo apt-get install --no-install-recommends -y \
+            libegl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            libxcb-icccm4 libxcb-shape0 libxcb-keysyms1 \
+            xvfb xauth
       - run: python -m pip install -r scripts/requirements-build.txt
       - run: python -m unittest discover -s tests -v
       - run: python quakebundle.py --smoke-test
