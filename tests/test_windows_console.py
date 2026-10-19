@@ -1,17 +1,19 @@
-"""Windows authentication needs console handles, including in a frozen GUI."""
+"""Windows authentication and download progress need native console handles."""
 
 import importlib.util
+import io
 import os
 import sys
 import tempfile
 import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from quake_installer import interactive, windows_console
-from quake_installer.events import Cancelled
+from quake_installer import gamedata, interactive, steamcmd, windows_console
+from quake_installer.events import Cancelled, Observer, observe
 
 
 class ConsoleTransportTests(unittest.TestCase):
@@ -54,6 +56,37 @@ class ConsoleTransportTests(unittest.TestCase):
         self.assertEqual(received, [b"Password:", b"done"])
         self.terminal.write.assert_called_once_with("secret-value\r")
         self.assertNotIn("secret-value", str(self.terminal.spawn.call_args))
+        self.terminal.cancel_io.assert_called_once()
+
+    def test_download_streams_fragmented_progress_before_console_exits(self):
+        progress = []
+
+        def chunks():
+            yield "\x1b]0;SteamCMD\x07\x1b[?25lUpdate state (0x61) down\x1b["
+            yield "32mloading, progress: 25.00 (25 / "
+            self.assertEqual(progress, [])
+            yield "100)\x1b[0m"
+            self.assertEqual(progress[-1], (25, 100, "downloading"))
+            yield "\rUpdate state (0x61) downloading, progress: 75.00 (75 / 100)\r\n"
+            self.assertEqual(progress[-1], (75, 100, "downloading"))
+            yield "\x1b[4;1HUpdate state (0x81) verifying, progress: 50.00 (1 / 2)"
+            self.assertEqual(progress[-1], (1, 2, "verifying"))
+            yield "\r\nSuccess! App '2310' fully installed.\r\n"
+            yield ""
+
+        self.terminal.read.side_effect = chunks()
+        self.terminal.get_exitstatus.return_value = 0
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(interactive, "os", SimpleNamespace(name="nt")),
+            patch.object(steamcmd, "STEAMCMD_DIR", Path(temporary)),
+            patch.object(gamedata, "DOWNLOAD_DIR", Path(temporary) / "download"),
+            observe(Observer(lambda *values: progress.append(values), lambda: None)),
+            redirect_stdout(io.StringIO()),
+        ):
+            gamedata.download_quake(Path("steamcmd.exe"), "account", 1)
+        self.terminal.spawn.assert_called_once()
+        self.terminal.write.assert_not_called()
         self.terminal.cancel_io.assert_called_once()
 
     def test_cancellation_terminates_console_and_releases_io(self):
@@ -112,6 +145,44 @@ class ConsoleTransportTests(unittest.TestCase):
     "Requires Windows and the bundled GUI console dependency",
 )
 class NativeConsoleTests(unittest.TestCase):
+    def test_console_download_reports_progress_while_process_is_running(self):
+        fixture = Path(__file__).parent / "fixtures" / "windows_steam_console.py"
+        run_process = interactive.run_process
+        progress = []
+        with tempfile.TemporaryDirectory(prefix="steam download ") as temporary:
+            root = Path(temporary)
+            acknowledged = root / "progress-received"
+
+            def run(command, *args, **kwargs):
+                return run_process(
+                    [
+                        sys.executable,
+                        "-u",
+                        str(fixture),
+                        "--download-progress",
+                        str(acknowledged),
+                    ],
+                    *args,
+                    **kwargs,
+                    timeout=15,
+                )
+
+            def update(value, total, description):
+                progress.append((value, total, description))
+                if value == 25 and total == 100:
+                    acknowledged.touch()
+
+            with (
+                patch.object(interactive, "run_process", side_effect=run),
+                patch.object(steamcmd, "STEAMCMD_DIR", root),
+                patch.object(gamedata, "DOWNLOAD_DIR", root / "download"),
+                observe(Observer(update, lambda: None)),
+                redirect_stdout(io.StringIO()),
+            ):
+                gamedata.download_quake(fixture, "account", 1)
+        self.assertIn((25, 100, "downloading"), progress)
+        self.assertIn((75, 100, "downloading"), progress)
+
     def test_real_console_api_password_and_guard_roundtrip(self):
         fixture = Path(__file__).parent / "fixtures" / "windows_steam_console.py"
         run_process = interactive.run_process
