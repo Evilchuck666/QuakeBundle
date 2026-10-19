@@ -53,7 +53,11 @@ def archive(executable, system, architecture):
         staged = Path(temporary) / destination.name
         if system == "linux":
             with tarfile.open(staged, "w:gz") as bundle:
-                bundle.add(executable, arcname=executable.name)
+                member = bundle.gettarinfo(executable, arcname=executable.name)
+                # Store POSIX permissions explicitly, including on Windows hosts.
+                member.mode = 0o755
+                with executable.open("rb") as source:
+                    bundle.addfile(member, source)
         else:
             with zipfile.ZipFile(
                 staged, "w", compression=zipfile.ZIP_DEFLATED

@@ -54,7 +54,9 @@ class BuildScriptsTests(unittest.TestCase):
                         "QuakeBundle.exe" if system == "windows" else "QuakeBundle"
                     )
                     executable.write_bytes(b"synthetic executable")
-                    executable.chmod(0o755)
+                    # Packaging must supply executable permissions even when the
+                    # host filesystem cannot represent POSIX execute bits.
+                    executable.chmod(0o666)
                     archive = build.archive(executable, system, "x64")
                     if system == "linux":
                         with tarfile.open(archive) as bundle:
