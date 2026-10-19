@@ -23,7 +23,7 @@ if dependency_errors:
         + f"\nBuild interpreter: {sys.executable}\n"
         + "Install scripts/requirements-build.txt with this same interpreter before building.\n"
         + "Use Python 3.13 to match the tested CI build environment.\n"
-        + "See the Windows build commands in README.md."
+        + "See the Windows build commands in TECHNICAL_GUIDE.md."
     )
 console_datas, console_binaries, console_imports = (
     collect_all("winpty") if sys.platform == "win32" else ([], [], [])
@@ -34,7 +34,8 @@ analysis = Analysis(
     datas=[(str(root / "assets" / "cfg"), "assets/cfg"),
            (str(root / "assets" / "icons"), "assets/icons"),
            (str(root / "assets" / "links"), "assets/links"),
-           (str(root / "README.md"), ".")] + console_datas,
+           (str(root / "README.md"), "."),
+           (str(root / "TECHNICAL_GUIDE.md"), ".")] + console_datas,
     binaries=console_binaries,
     hiddenimports=["certifi"] + console_imports,
     excludes=["tkinter", "PyQt5", "PyQt6", "PySide2"],
