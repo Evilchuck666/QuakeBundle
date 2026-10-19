@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import codecs
 import collections
 import os
 import platform
@@ -21,6 +22,7 @@ except ImportError:
 from .config import STEAMCMD_DIR, STEAMCMD_URLS, TAIL_LINES
 from .console import progress_bar
 from .events import current
+from .interactive import TERMINAL_ESCAPE
 from .net import fetch
 
 # Lines of steamcmd output that drive the progress display.
@@ -31,7 +33,6 @@ PROGRESS_RE = re.compile(
 )
 
 SUCCESS_RE = re.compile(r"Success! App '(\d+)' (.*)")
-ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 
 
 def steamcmd_executable() -> Path:
@@ -108,8 +109,8 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
     """
     tail = collections.deque(maxlen=TAIL_LINES)
 
-    def handle(raw: bytes) -> None:
-        line = ANSI_RE.sub("", raw.decode(errors="replace")).strip()
+    def handle(line: str) -> None:
+        line = TERMINAL_ESCAPE.sub("", line).strip()
 
         if line:
             tail.append(line)
@@ -118,16 +119,24 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
     if observer := current.get():
         from .interactive import run_process
 
-        pending = b""
+        pending = ""
+        decoder = codecs.getincrementaldecoder("utf-8")("replace")
 
         def output(chunk, send):
             nonlocal pending
-            *lines, pending = re.split(rb"[\r\n]", pending + chunk)
-            for raw in lines:
-                handle(raw)
+            # ConPTY can split UTF-8 and terminal escapes between reads.
+            pending = TERMINAL_ESCAPE.sub("", pending + decoder.decode(chunk))
+            *lines, pending = re.split(r"[\r\n]", pending)
+            for line in lines:
+                handle(line)
+            # A console redraw need not end in a newline. Deliver each complete
+            # progress record immediately, while keeping partial records.
+            while match := PROGRESS_RE.search(pending):
+                handle(pending[: match.end()])
+                pending = pending[match.end() :]
 
         code = run_process(command, STEAMCMD_DIR, output, observer.checkpoint)
-        handle(pending)
+        handle(pending + decoder.decode(b"", final=True))
         return code, list(tail)
 
     if os.name == "posix":
@@ -159,16 +168,16 @@ def run_captured(command: list[str], on_line) -> tuple[int, list[str]]:
 
                 *lines, pending = re.split(rb"[\r\n]", pending + chunk)
                 for raw in lines:
-                    handle(raw)
+                    handle(raw.decode(errors="replace"))
 
-            handle(pending)
+            handle(pending.decode(errors="replace"))
             os.close(master)
         else:
             # Windows has no pseudo-terminals in the standard library, so progress
             # may arrive in bursts here.
             with proc.stdout:
                 for raw in proc.stdout:
-                    handle(raw)
+                    handle(raw.decode(errors="replace"))
         return proc.wait(), list(tail)
 
 

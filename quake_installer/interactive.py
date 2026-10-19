@@ -17,12 +17,13 @@ from .runtime import external_environment, external_libraries
 def run_process(command, cwd, output, checkpoint, interactive=False, timeout=1800):
     """Deliver chunks (including prompts without newlines) and reap the child.
 
-    A PTY on POSIX prevents SteamCMD buffering its prompts. Interactive Windows
-    sessions need ConPTY: SteamCMD uses console APIs that pipes cannot provide.
-    Noninteractive Windows commands use pipes. The reader never calls UI code. Cancellation kills
-    the process group on POSIX so steamcmd.sh cannot leave a child behind.
+    A PTY on POSIX prevents SteamCMD buffering its output. Windows sessions
+    use ConPTY for both authentication and live download progress: SteamCMD's
+    console output cannot be reliably captured with pipes. The reader never
+    calls UI code. Cancellation kills the process group on POSIX so
+    steamcmd.sh cannot leave a child behind.
     """
-    if os.name == "nt" and interactive:
+    if os.name == "nt":
         from .windows_console import run_console
 
         return run_console(command, cwd, output, checkpoint, timeout)

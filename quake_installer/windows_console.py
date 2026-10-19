@@ -1,4 +1,4 @@
-"""Hidden Windows console for SteamCMD's console-only authentication prompts."""
+"""Hidden Windows console for SteamCMD authentication and live progress."""
 
 from __future__ import annotations
 
