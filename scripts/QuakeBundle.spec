@@ -41,6 +41,14 @@ analysis = Analysis(
     excludes=["tkinter", "PyQt5", "PyQt6", "PySide2"],
     noarchive=False,
 )
+if sys.platform == "linux":
+    # The X11 companion uses private xkbcommon internals. Loading the host's
+    # companion with a bundled core can crash in xkb_keymap_unref on Artix.
+    # Keep both libraries together in the host desktop stack.
+    analysis.binaries = [
+        entry for entry in analysis.binaries
+        if not Path(entry[0]).name.startswith(("libxkbcommon.so", "libxkbcommon-x11.so"))
+    ]
 pyz = PYZ(analysis.pure)
 exe = EXE(
     pyz, analysis.scripts, analysis.binaries, analysis.datas, [],

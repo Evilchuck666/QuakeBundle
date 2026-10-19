@@ -13,6 +13,20 @@ from scripts import build
 
 
 class BuildScriptsTests(unittest.TestCase):
+    def test_x11_verification_overrides_ci_offscreen_default(self):
+        def render_preview(command, *, cwd, env, check, timeout):
+            self.assertEqual(env["QT_QPA_PLATFORM"], "xcb")
+            (Path(cwd) / "preview.png").write_bytes(b"preview")
+
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "QuakeBundle"
+            executable.write_bytes(b"binary")
+            with (
+                patch.dict(build.os.environ, {"QT_QPA_PLATFORM": "offscreen"}),
+                patch.object(build.subprocess, "run", side_effect=render_preview),
+            ):
+                build.verify(executable, qt_platform="xcb")
+
     def test_windows_verification_uses_uppercase_environment_keys(self):
         environment = {
             "SYSTEMROOT": r"D:\Windows",

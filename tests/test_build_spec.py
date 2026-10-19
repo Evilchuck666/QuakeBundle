@@ -71,10 +71,15 @@ class BuildSpecTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         hooks = ModuleType("PyInstaller.utils.hooks")
         hooks.collect_all = Mock(return_value=([], [], []))
-        analysis = SimpleNamespace(
-            pure=[], scripts=[], binaries=["Qt"], datas=["assets"]
-        )
         for platform in ("linux", "win32", "darwin"):
+            binaries = [
+                ("libQt6Gui.so.6", "/qt/libQt6Gui.so.6", "BINARY"),
+                ("libxkbcommon.so.0", "/usr/lib/libxkbcommon.so.0", "BINARY"),
+                ("libxkbcommon-x11.so.0", "/usr/lib/libxkbcommon-x11.so.0", "BINARY"),
+            ]
+            analysis = SimpleNamespace(
+                pure=[], scripts=[], binaries=binaries.copy(), datas=["assets"]
+            )
             exe = Mock()
             with (
                 self.subTest(platform=platform),
@@ -97,3 +102,6 @@ class BuildSpecTests(unittest.TestCase):
             self.assertIn(analysis.binaries, exe.call_args.args)
             self.assertIn(analysis.datas, exe.call_args.args)
             self.assertFalse(exe.call_args.kwargs.get("exclude_binaries", False))
+            self.assertEqual(
+                analysis.binaries, binaries[:1] if platform == "linux" else binaries
+            )

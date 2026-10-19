@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SYSTEMS = {"Linux": "linux", "Darwin": "macos", "Windows": "windows"}
 
 
-def verify(executable):
+def verify(executable, qt_platform="offscreen"):
     """Run only the copied executable, outside the checkout and build environment."""
     with tempfile.TemporaryDirectory(prefix="QuakeBundle standalone ") as directory:
         directory = Path(directory)
@@ -26,7 +26,7 @@ def verify(executable):
         environment = os.environ.copy()
         for key in ("PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"):
             environment.pop(key, None)
-        environment["QT_QPA_PLATFORM"] = "offscreen"
+        environment["QT_QPA_PLATFORM"] = qt_platform
         if os.name == "nt":
             # The copied dict keeps Windows' uppercase keys but is case-sensitive.
             windows = environment["SYSTEMROOT"]

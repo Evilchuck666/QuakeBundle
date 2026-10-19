@@ -135,6 +135,12 @@ The **Build Qt6 desktop** workflow builds, verifies, and archives the applicatio
 for Linux x64, Windows x64, macOS Intel, and Apple Silicon. The artifacts are
 unsigned packages; the workflow does not publish releases.
 
+On Linux, the executable uses the desktop's `libxkbcommon` and
+`libxkbcommon-x11` together. Bundling only one can crash on newer distributions
+such as Artix when Qt releases its X11 keyboard state. Both must be installed
+on the host (Artix/Arch packages: `libxkbcommon` and `libxkbcommon-x11`). CI also
+checks standalone startup and shutdown through X11 under Xvfb.
+
 Standalone does not mean independent of the operating system: Linux needs
 Qt-compatible desktop/graphics libraries, SteamCMD's 32-bit dependencies, and
 the dependencies required by AppImages; macOS on Apple Silicon requires Rosetta

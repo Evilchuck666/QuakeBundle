@@ -53,7 +53,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y libegl1
+          sudo apt-get install --no-install-recommends -y libegl1 libxkbcommon-x11-0 libxcb-cursor0 xvfb xauth
       - run: python -m pip install -r scripts/requirements-build.txt
       - run: python -m unittest discover -s tests -v
       - run: python quakebundle.py --smoke-test
@@ -66,6 +66,9 @@ jobs:
             macOS) target=macos ;;
           esac
           python scripts/build.py --platform "$target"
+      - name: Verify standalone X11 startup and shutdown (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python -c 'from pathlib import Path; from scripts.build import verify; verify(Path("dist/QuakeBundle"), qt_platform="xcb")'
       - uses: actions/upload-artifact@v6
         with:
           name: QuakeBundle-${{ matrix.os }}
