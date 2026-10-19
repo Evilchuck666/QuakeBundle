@@ -1,95 +1,95 @@
 # QuakeBundle
 
-Instalador y lanzador de Quake con **Qt6 / PySide6**. Una ventana para la campaña
-con vkQuake y el multijugador con ezQuake + nQuake, selección de carpeta, ajustes
-del jugador, autenticación de Steam y progreso de instalación.
+Quake installer and launcher built with **Qt6 / PySide6**. One window for the
+campaign with vkQuake and multiplayer with ezQuake + nQuake, folder selection,
+player settings, Steam authentication, and installation progress.
 
-## Aplicación autónoma
+## Standalone application
 
-El paquete distribuible contiene **Python, Qt6, certificados TLS, iconos y
-configuraciones en un único ejecutable**. El usuario no necesita instalar
-Python, pip ni Qt. Descomprime y abre `QuakeBundle` (Linux/macOS) o
-`QuakeBundle.exe` (Windows). No necesita un directorio `_internal` al lado.
+The distribution package contains **Python, Qt6, TLS certificates, icons, and
+configuration files in a single executable**. Users do not need to install
+Python, pip, or Qt. Extract the package and open `QuakeBundle` (Linux/macOS) or
+`QuakeBundle.exe` (Windows). No accompanying `_internal` directory is needed.
 
-### Descargar para Windows
+### Download for Windows
 
-1. Abre [Build Qt6 desktop en GitHub Actions](https://github.com/Evilchuck666/QuakeBundle/actions/workflows/desktop.yml)
-   y selecciona una ejecución completada correctamente.
-2. En **Artifacts**, descarga **QuakeBundle-windows-2025** (Windows x64).
-   GitHub requiere iniciar sesión para descargar los artefactos.
-3. Extrae el ZIP del artefacto y después el archivo
-   `QuakeBundle-windows-x64.zip` que contiene.
-4. Abre **`QuakeBundle.exe`**. Es el único archivo necesario para ejecutar la GUI.
+1. Open [Build Qt6 desktop on GitHub Actions](https://github.com/Evilchuck666/QuakeBundle/actions/workflows/desktop.yml)
+   and select a successful run.
+2. Under **Artifacts**, download **QuakeBundle-windows-2025** (Windows x64).
+   GitHub requires you to sign in to download artifacts.
+3. Extract the artifact ZIP, then extract the
+   `QuakeBundle-windows-x64.zip` archive inside it.
+4. Open **`QuakeBundle.exe`**. This is the only file needed to run the GUI.
 
-No necesitas instalar Python, pip ni PySide6, ni ejecutar comandos.
-**Code → Download ZIP** descarga el código fuente, no la aplicación autónoma.
+You do not need to install Python, pip, or PySide6, or run any commands.
+**Code → Download ZIP** downloads the source code, not the standalone application.
 
-La GUI y su lógica de instalación están escritas en Python;
-PyInstaller incluye su intérprete en la aplicación mediante el modo `onefile`.
-Al arrancar extrae las bibliotecas y recursos a una carpeta temporal, que elimina
-al cerrar normalmente. Esto añade tiempo al arranque y requiere espacio temporal;
-en Linux esa ubicación debe permitir ejecutar las bibliotecas extraídas.
-Es un ejecutable autoextraíble, no un AppImage ni un binario estático universal.
-Cada sistema y arquitectura necesita su propia compilación. Véase la
-[documentación de PyInstaller](https://pyinstaller.org/en/stable/operating-mode.html).
+The GUI and its installation logic are written in Python;
+PyInstaller bundles the interpreter into the application using `onefile` mode.
+At startup, it extracts libraries and resources to a temporary folder, which it
+removes on normal shutdown. This adds startup time and requires temporary space;
+on Linux, that location must allow the extracted libraries to execute.
+This is a self-extracting executable, not an AppImage or a universal static binary.
+Each operating system and architecture needs its own build. See the
+[PyInstaller documentation](https://pyinstaller.org/en/stable/operating-mode.html).
 
-La aplicación instala y abre los motores directamente, sin necesitar un intérprete
-externo para jugar desde la GUI. Los ajustes iniciales y los iconos se copian
-desde los recursos incluidos a la carpeta de instalación. La GUI es la única
-interfaz del instalador. Al terminar la instalación, crea un
-acceso directo al motor que funciona sin Python: en el menú de aplicaciones de
-Linux, el escritorio de Windows o `~/Applications` en macOS. Se actualiza al
-reinstalar. Las configuraciones
-existentes se conservan, salvo los campos del jugador que se editan en la ventana.
+The application installs and launches the engines directly, without requiring an
+external interpreter to play from the GUI. Initial settings and icons are copied
+from the bundled resources to the installation folder. The GUI is the installer's
+only interface. Once installation is complete, it creates an engine shortcut that
+works without Python: in the Linux application menu, on the Windows desktop, or
+in `~/Applications` on macOS. The shortcut is updated when reinstalling.
+Existing configuration files are preserved, except for the player fields edited
+in the window.
 
-Para instalar necesitas Internet y una cuenta de Steam que tenga Quake. SteamCMD,
-los motores y los datos del juego se descargan durante la instalación; no están
-incluidos en el paquete. La contraseña y Steam Guard se solicitan en la ventana
-y se envían por la entrada del proceso, nunca como argumentos. QuakeBundle no
-los guarda ni registra; SteamCMD puede conservar su propia sesión de Steam.
-En Windows, el inicio de sesión usa una consola virtual oculta (ConPTY) para
-recibir las peticiones de contraseña y Steam Guard. Su soporte está incluido
-en el paquete autónomo; no requiere instalar Python ni componentes adicionales.
+Installation requires an Internet connection and a Steam account that owns Quake.
+SteamCMD, the engines, and the game data are downloaded during installation; they
+are not included in the package. Password and Steam Guard prompts appear in the
+window, and responses are sent through process input, never as arguments.
+QuakeBundle does not save or log them; SteamCMD may retain its own Steam session.
+On Windows, login uses a hidden virtual console (ConPTY) to receive password and
+Steam Guard prompts. This support is included in the standalone package; no
+additional Python installation or components are required.
 
-La GUI conserva SteamCMD entre instalaciones y lo reutiliza para ambas ediciones,
-comprobando sus actualizaciones antes de usarlo. Se instala en
-`~/.local/share/steamcmd` en Linux (o bajo `XDG_DATA_HOME` si está definido),
-`%LOCALAPPDATA%/steamcmd` en Windows y
-`~/Library/Application Support/steamcmd` en macOS. Al terminar, la limpieza
-elimina los datos temporales descargados del juego y conserva SteamCMD.
+The GUI keeps SteamCMD between installations and reuses it for both editions,
+checking for updates before using it. SteamCMD is installed in
+`~/.local/share/steamcmd` on Linux (or under `XDG_DATA_HOME` if set),
+`%LOCALAPPDATA%/steamcmd` on Windows, and
+`~/Library/Application Support/steamcmd` on macOS. When installation finishes,
+cleanup removes temporary game downloads and keeps SteamCMD.
 
-En una instalación reconocida, **Jugar** funciona sin autenticarse de nuevo y
-permite elegir las expansiones presentes. Los ajustes se guardan en los archivos
-del juego. La carpeta y el nombre de usuario se recuerdan con QSettings.
+For a recognized installation, **Play** works without signing in again and lets
+you select installed expansions. Settings are saved in the game's configuration
+files. The folder and username are remembered through QSettings.
 
-## Desarrollo y compilación
+## Development and builds
 
-### Scripts de compilación
+### Build scripts
 
-Con `uv` instalado, ejecuta el script correspondiente **en el sistema de destino**:
+With `uv` installed, run the appropriate script **on the target operating system**:
 
-| Sistema | Comando | Paquete generado |
+| System | Command | Generated package |
 | --- | --- | --- |
 | GNU/Linux | `./scripts/build-linux.sh` | `dist/QuakeBundle-linux-x64.tar.gz` |
 | Windows PowerShell | `.\scripts\build-windows.ps1` | `dist/QuakeBundle-windows-x64.zip` |
-| macOS | `./scripts/build-macos.sh` | `dist/QuakeBundle-macos-x64.zip` o `dist/QuakeBundle-macos-arm64.zip` |
+| macOS | `./scripts/build-macos.sh` | `dist/QuakeBundle-macos-x64.zip` or `dist/QuakeBundle-macos-arm64.zip` |
 
-Los scripts obtienen Python 3.13 y las dependencias de `scripts/requirements-build.txt`
-mediante `uv`, en un entorno aislado. Después compilan el ejecutable `onefile`,
-lo prueban desde una carpeta temporal sin los archivos del proyecto y crean un
-archivo comprimido que contiene únicamente ese ejecutable. El binario también
-queda disponible directamente en `dist/`. Si falla la compilación o la prueba,
-el proceso se detiene sin publicar un nuevo archivo comprimido.
+The scripts use `uv` to obtain Python 3.13 and the dependencies listed in
+`scripts/requirements-build.txt` in an isolated environment. They then build the
+`onefile` executable, test it from a temporary folder without the project files,
+and create an archive containing only that executable. The binary is also
+available directly in `dist/`. If the build or test fails, the process stops
+without publishing a new archive.
 
-Puedes invocarlos desde otra carpeta. La arquitectura del paquete corresponde
-al intérprete utilizado para construirlo; no realizan compilación cruzada.
-En macOS se entrega el binario independiente, no un `.app`.
-El equipo del usuario final no necesita `uv` ni Python.
+You can invoke the scripts from another folder. The package architecture matches
+the interpreter used to build it; the scripts do not perform cross-compilation.
+On macOS, the output is a standalone binary, not an `.app`.
+The end user's computer does not need `uv` or Python.
 
-### Compilación manual
+### Manual builds
 
-Python solo es necesario en el equipo de desarrollo/compilación (3.10 o superior;
-CI utiliza 3.13). Desde la raíz del repositorio:
+Python is only required on the development/build machine (3.10 or newer;
+CI uses 3.13). From the repository root:
 
 ```sh
 python -m venv .venv
@@ -101,8 +101,8 @@ python quakebundle.py
 python -m PyInstaller --noconfirm scripts/QuakeBundle.spec
 ```
 
-En **Windows PowerShell**, para utilizar el mismo Python 3.13 que CI, instala
-esa versión en el equipo de compilación y ejecuta:
+In **Windows PowerShell**, to use the same Python 3.13 version as CI, install
+that version on the build machine and run:
 
 ```powershell
 py -3.13 -m venv .venv-build
@@ -110,59 +110,58 @@ py -3.13 -m venv .venv-build
 .\.venv-build\Scripts\python.exe -m PyInstaller --clean --noconfirm .\scripts\QuakeBundle.spec
 ```
 
-Instalar solo PyInstaller no basta: todas las dependencias deben estar en el
-mismo entorno desde el que se compila. El `.spec` comprueba sus importaciones
-y detiene la compilación si faltan o no se pueden cargar. Este Python solo se
-necesita para construir; el paquete resultante incluye el intérprete y la GUI.
+Installing PyInstaller alone is not enough: all dependencies must be in the same
+environment used for the build. The `.spec` checks their imports and stops the
+build if any are missing or cannot be loaded. This Python installation is only
+needed for building; the resulting package includes the interpreter and the GUI.
 
-La salida es **`dist/QuakeBundle`** en Linux/macOS o **`dist/QuakeBundle.exe`**
-en Windows. El modo `onefile` ya está definido en el `.spec`; se utiliza el mismo
-comando de compilación, sin añadir `--onefile`. La compilación incluye los plugins
-de Qt mediante los hooks de PyInstaller.
+The output is **`dist/QuakeBundle`** on Linux/macOS or **`dist/QuakeBundle.exe`**
+on Windows. The `.spec` already defines `onefile` mode; use the same build command
+without adding `--onefile`. The build includes Qt plugins through PyInstaller's
+hooks.
 
-En macOS se genera un binario Mach-O independiente que puedes ejecutar con
-`./dist/QuakeBundle`. No se genera un `.app`: ese formato es una carpeta, aunque
-Finder lo muestre como una aplicación. La integración propia de un `.app`
-(por ejemplo, su metadato de aplicación) requiere distribuir ese formato.
+On macOS, the build produces a standalone Mach-O binary that you can run with
+`./dist/QuakeBundle`. It does not produce an `.app`: that format is a directory,
+even though Finder displays it as an application. Integration specific to an
+`.app` (such as its application metadata) requires distributing that format.
 
-Si antes compilaste el formato de carpeta, PyInstaller reemplaza
-`dist/QuakeBundle/` por el ejecutable al reconstruir con `--noconfirm`.
-Los paquetes antiguos descargados siguen teniendo su formato anterior.
+If you previously built the directory format, PyInstaller replaces
+`dist/QuakeBundle/` with the executable when rebuilding with `--noconfirm`.
+Previously downloaded packages retain their original format.
 
-El workflow
-**Build Qt6 desktop** construye, verifica y archiva las aplicaciones para Linux
-x64, Windows x64, macOS Intel y Apple Silicon. Los artefactos son paquetes sin
-firma; el workflow no publica releases.
+The **Build Qt6 desktop** workflow builds, verifies, and archives the applications
+for Linux x64, Windows x64, macOS Intel, and Apple Silicon. The artifacts are
+unsigned packages; the workflow does not publish releases.
 
-Autónomo no significa independiente del sistema operativo: Linux necesita las
-bibliotecas de escritorio/gráficas compatibles con Qt, las dependencias de
-SteamCMD de 32 bits y las necesarias para los AppImage; macOS Apple Silicon
-requiere Rosetta para SteamCMD. Compila Linux sobre la distribución más antigua
-que quieras soportar; no se garantiza compatibilidad con una glibc anterior.
-Los paquetes para distribución pública deben incluir los avisos y licencias de
-sus dependencias. Qt/PySide6 se distribuyen como bibliotecas dinámicas.
+Standalone does not mean independent of the operating system: Linux needs
+Qt-compatible desktop/graphics libraries, SteamCMD's 32-bit dependencies, and
+the dependencies required by AppImages; macOS on Apple Silicon requires Rosetta
+for SteamCMD. Build on the oldest Linux distribution you want to support;
+compatibility with an older glibc is not guaranteed.
+Packages for public distribution must include their dependencies' notices and
+licenses. Qt/PySide6 are distributed as dynamic libraries.
 
-## Verificación
+## Verification
 
 ```sh
 python -m unittest discover -s tests -v
 python quakebundle.py --smoke-test
 ```
 
-En Linux sin pantalla, antepón `QT_QPA_PLATFORM=offscreen`. Para guardar una
-vista de la ventana: `python quakebundle.py --smoke-test --screenshot preview.png`.
-Comprueba también el paquete compilado:
+On headless Linux, prefix the command with `QT_QPA_PLATFORM=offscreen`. To save
+a window preview: `python quakebundle.py --smoke-test --screenshot preview.png`.
+Also check the compiled package:
 
 ```sh
 QT_QPA_PLATFORM=offscreen dist/QuakeBundle --smoke-test
 ```
 
-Las pruebas usan procesos y archivos sintéticos, sin credenciales ni descargas
-comerciales. La autenticación real (incluidos Steam Guard y la confirmación móvil),
-las dependencias nativas y una partida real requieren validación manual en cada
-plataforma. Cancelar detiene las descargas/procesos controlados; durante una copia
-o extracción se espera al siguiente punto seguro. Cerrar la ventana durante una
-instalación solicita cancelación y espera al hilo de trabajo.
+Tests use synthetic processes and files, without credentials or commercial game
+downloads. Actual authentication (including Steam Guard and mobile confirmation),
+native dependencies, and a real game session require manual validation on each
+platform. Cancellation stops managed downloads/processes; copying or extraction
+waits until the next safe checkpoint. Closing the window during installation
+requests cancellation and waits for the worker thread.
 
-Consulta [tests/README.md](tests/README.md) para conocer la cobertura de la GUI
-y de los módulos internos de instalación.
+See [tests/README.md](tests/README.md) for coverage of the GUI and internal
+installation modules.

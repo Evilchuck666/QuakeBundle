@@ -2,11 +2,11 @@
 set -euo pipefail
 
 if [[ "$(uname -s)" != Darwin ]]; then
-    echo 'Este script debe ejecutarse en macOS.' >&2
+    echo 'This script must be run on macOS.' >&2
     exit 1
 fi
 if ! command -v uv >/dev/null 2>&1; then
-    echo 'Instala uv para preparar automaticamente Python y las dependencias de compilacion.' >&2
+    echo 'Install uv to automatically set up Python and the build dependencies.' >&2
     exit 1
 fi
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.."

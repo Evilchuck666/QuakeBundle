@@ -35,7 +35,7 @@ class DownloadTests(unittest.TestCase):
 
     def test_fetch_json_reads_utf8_file_url(self):
         """Fetch JSON from a file URL and decode UTF-8 text."""
-        payload = {"name": "Quake — español", "assets": [{"size": 123}]}
+        payload = {"name": "Quake — Spanish", "assets": [{"size": 123}]}
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "release data.json"
             source.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') {
-    throw 'Este script debe ejecutarse en Windows.'
+    throw 'This script must be run on Windows.'
 }
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    throw 'Instala uv para preparar automaticamente Python y las dependencias de compilacion.'
+    throw 'Install uv to automatically set up Python and the build dependencies.'
 }
 Push-Location (Join-Path $PSScriptRoot '..')
 try {
