@@ -16,14 +16,11 @@ from PySide6.QtCore import (
     QUrl,
 )
 from PySide6.QtGui import (
-    QColor,
     QDesktopServices,
     QIcon,
-    QLinearGradient,
-    QPainter,
-    QPen,
     QRegularExpressionValidator,
 )
+from PySide6.QtSvgWidgets import QSvgWidget
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -78,35 +75,13 @@ def label(text, kind=None, wrap=False):
     return widget
 
 
-class Gate(QWidget):
-    """Small procedural Quake-inspired portal, crisp at any display scale."""
+class QuakeEmblem(QSvgWidget):
+    """Amber Quake emblem, rendered as a vector at any display scale."""
 
     def __init__(self):
-        super().__init__()
+        super().__init__(str(ASSETS / "icons/quake-emblem.svg"))
         self.setFixedSize(200, 120)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        gradient = QLinearGradient(10, 110, 190, 10)
-        gradient.setColorAt(0, QColor("#111318"))
-        gradient.setColorAt(1, QColor("#583723"))
-        painter.fillRect(self.rect(), gradient)
-        for index in range(5):
-            offset = index * 12
-            painter.setPen(QPen(QColor(238, 179, 118, 30 + index * 30), 1.5))
-            painter.drawRoundedRect(
-                15 + offset,
-                8 + offset // 2,
-                166 - offset * 2,
-                112 - offset,
-                54 - offset // 2,
-                54 - offset // 2,
-            )
-        painter.setPen(QPen(QColor("#eeb376"), 2))
-        painter.drawLine(99, 60, 99, 104)
-        painter.drawEllipse(86, 56, 26, 28)
-        painter.end()
+        self.setAccessibleName("Quake emblem")
 
 
 class MainWindow(QMainWindow):
@@ -162,7 +137,7 @@ class MainWindow(QMainWindow):
         words.addWidget(label("Back to the beginning.", "heading"))
         words.addWidget(label("Two ways to play. One gateway.", "muted", True))
         hero.addLayout(words, 1)
-        hero.addWidget(Gate())
+        hero.addWidget(QuakeEmblem())
         left.addLayout(hero)
         left.addWidget(label("01   Choose your experience", "section"))
         editions = QHBoxLayout()
