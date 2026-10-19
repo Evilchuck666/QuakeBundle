@@ -104,7 +104,7 @@ jobs:
           fi
 
           # Fetch existing tags. An API failure must stop publication.
-          gh api --paginate "repos/$GH_REPO/git/refs/tags" \
+          gh api --paginate "repos/$GH_REPO/git/matching-refs/tags/" \
             --jq '.[].ref' > existing-tags.txt
 
           if grep -Fxq "refs/tags/v$VERSION" existing-tags.txt; then
