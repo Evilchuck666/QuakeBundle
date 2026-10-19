@@ -18,6 +18,11 @@ on:
       - '.github/workflows/desktop.yml'
   pull_request:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, without v. Example: 1.0.0'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -68,3 +73,89 @@ jobs:
             dist/QuakeBundle-*.tar.gz
             dist/QuakeBundle-*.zip
           if-no-files-found: error
+  release:
+    name: Publish release
+    needs: desktop
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    concurrency:
+      group: quakebundle-release
+      cancel-in-progress: false
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      VERSION: ${{ inputs.version }}
+      RELEASE_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Validate version and check tag
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Usa una versión como 1.0.0, sin la v."
+            exit 1
+          fi
+
+          # Fetch existing tags. An API failure must stop publication.
+          gh api --paginate "repos/$GH_REPO/git/refs/tags" \
+            --jq '.[].ref' > existing-tags.txt
+
+          if grep -Fxq "refs/tags/v$VERSION" existing-tags.txt; then
+            echo "::error::El tag v$VERSION ya existe. Usa otra versión."
+            exit 1
+          fi
+
+      - name: Download build packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: QuakeBundle-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Check packages and generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+
+          for file in \
+            QuakeBundle-linux-x64.tar.gz \
+            QuakeBundle-windows-x64.zip \
+            QuakeBundle-macos-x64.zip \
+            QuakeBundle-macos-arm64.zip
+          do
+            if [[ ! -s "$file" ]]; then
+              echo "::error::Falta el paquete $file o está vacío."
+              exit 1
+            fi
+          done
+
+          sha256sum \
+            QuakeBundle-linux-x64.tar.gz \
+            QuakeBundle-windows-x64.zip \
+            QuakeBundle-macos-x64.zip \
+            QuakeBundle-macos-arm64.zip \
+            > SHA256SUMS.txt
+
+      - name: Create tag and publish release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          gh release create "v$VERSION" \
+            release-assets/QuakeBundle-linux-x64.tar.gz \
+            release-assets/QuakeBundle-windows-x64.zip \
+            release-assets/QuakeBundle-macos-x64.zip \
+            release-assets/QuakeBundle-macos-arm64.zip \
+            release-assets/SHA256SUMS.txt \
+            --target "$RELEASE_SHA" \
+            --title "QuakeBundle v$VERSION" \
+            --generate-notes \
+            --latest
