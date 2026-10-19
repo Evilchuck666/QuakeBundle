@@ -28,7 +28,8 @@ def verify(executable):
             environment.pop(key, None)
         environment["QT_QPA_PLATFORM"] = "offscreen"
         if os.name == "nt":
-            windows = environment["SystemRoot"]
+            # The copied dict keeps Windows' uppercase keys but is case-sensitive.
+            windows = environment["SYSTEMROOT"]
             environment["PATH"] = os.pathsep.join(
                 (str(Path(windows) / "System32"), windows)
             )

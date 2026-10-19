@@ -6,12 +6,46 @@ import tempfile
 import unittest
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import build
 
 
 class BuildScriptsTests(unittest.TestCase):
+    def test_windows_verification_uses_uppercase_environment_keys(self):
+        environment = {
+            "SYSTEMROOT": r"D:\Windows",
+            "PATH": r"C:\Python313;C:\build-tools",
+            "PYTHONHOME": r"C:\Python313",
+            "PYTHONPATH": r"C:\checkout",
+            "VIRTUAL_ENV": r"C:\build-env",
+        }
+        windows_os = SimpleNamespace(name="nt", pathsep=";", environ=environment)
+
+        def render_preview(command, *, cwd, env, check, timeout):
+            self.assertEqual(Path(command[0]).read_bytes(), b"synthetic executable")
+            self.assertEqual(command[1:], ["--smoke-test", "--screenshot", "preview.png"])
+            self.assertEqual(env["SYSTEMROOT"], r"D:\Windows")
+            self.assertEqual(
+                env["PATH"], str(Path(r"D:\Windows") / "System32") + r";D:\Windows"
+            )
+            self.assertEqual(env["QT_QPA_PLATFORM"], "offscreen")
+            for key in ("PYTHONHOME", "PYTHONPATH", "VIRTUAL_ENV"):
+                self.assertNotIn(key, env)
+            (Path(cwd) / "preview.png").write_bytes(b"synthetic preview")
+
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "QuakeBundle.exe"
+            executable.write_bytes(b"synthetic executable")
+            with (
+                patch.object(build, "os", windows_os),
+                patch.object(build.subprocess, "run", side_effect=render_preview) as run,
+            ):
+                build.verify(executable)
+            run.assert_called_once()
+        self.assertEqual(environment["PATH"], r"C:\Python313;C:\build-tools")
+
     def test_archives_contain_only_the_executable(self):
         with tempfile.TemporaryDirectory(prefix="build package ") as directory:
             for system in ("linux", "windows", "macos"):
