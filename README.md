@@ -34,16 +34,25 @@ You can adjust your player settings and launch the game from the same window.
 
 ## 🚀 Getting started
 
-1. Download the package for your system from a successful
-   [Build Qt6 desktop run](https://github.com/Evilchuck666/QuakeBundle/actions/workflows/desktop.yml).
-   See the [download instructions](TECHNICAL_GUIDE.md#download-for-windows) for the
-   Windows walkthrough.
+1. Download the package for your system from the
+   [latest release](https://github.com/Evilchuck666/QuakeBundle/releases/latest).
 2. Extract the package and open **QuakeBundle** (`QuakeBundle.exe` on Windows).
 3. Choose **Campaign** or **Multiplayer**, select a folder, and enter your Steam
    username and player name.
 4. Start the installation and follow any Steam authentication prompts.
 5. Once installation finishes, select **Play**. For the campaign, you can also
    choose an installed expansion.
+   
+## 📥 Download
+
+| Platform | Latest stable release |
+| --- | --- |
+| GNU/Linux x64 | [Download](https://github.com/Evilchuck666/QuakeBundle/releases/latest/download/QuakeBundle-linux-x64.tar.gz) |
+| Windows x64 | [Download](https://github.com/Evilchuck666/QuakeBundle/releases/latest/download/QuakeBundle-windows-x64.zip) |
+| macOS Intel | [Download](https://github.com/Evilchuck666/QuakeBundle/releases/latest/download/QuakeBundle-macos-x64.zip) |
+| macOS Apple Silicon | [Download](https://github.com/Evilchuck666/QuakeBundle/releases/latest/download/QuakeBundle-macos-arm64.zip) |
+
+[Release notes](https://github.com/Evilchuck666/QuakeBundle/releases/latest)
 
 ## 📋 What you need
 
